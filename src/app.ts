@@ -2292,34 +2292,49 @@ import { injectStyles } from './styles';
       return;
     }
 
-    let rowHost = null;
-    for (let host = tweetButton.parentElement; host && host !== form; host = host.parentElement) {
-      if (getComputedStyle(host).flexDirection === 'row') {
-        rowHost = host;
-        break;
+    // Choose the host:
+    //   focused state  -> [data-testid="toolBar"] (the row that holds the
+    //                    attachment nav + reply button)
+    //   unfocused state -> the column that directly wraps the reply button
+    //                    and is a direct child of the composer form. Force it
+    //                    to a row so 译 + 🤔 sit inline with 回复.
+    //   fallback        -> append a new row wrapper inside the form.
+    let host = document.querySelector('[data-testid="toolBar"]');
+    if (!host) {
+      host = tweetButton.parentElement;
+      while (host && host.parentElement !== form) {
+        host = host.parentElement;
+      }
+      if (host) {
+        host.style.flexDirection = 'row';
+        host.style.gap = '8px';
+        host.style.alignItems = 'center';
+        host.style.justifyContent = 'flex-end';
       }
     }
-    if (!rowHost && getComputedStyle(form).flexDirection === 'row') {
-      rowHost = form;
-    }
-    if (!rowHost) {
-      rowHost = document.getElementById(`${SCRIPT_ID}-reply-button-row`);
-      if (!rowHost) {
-        rowHost = document.createElement('div');
-        rowHost.id = `${SCRIPT_ID}-reply-button-row`;
-        rowHost.style.cssText =
+    if (!host) {
+      host = document.getElementById(`${SCRIPT_ID}-reply-button-row`);
+      if (!host) {
+        host = document.createElement('div');
+        host.id = `${SCRIPT_ID}-reply-button-row`;
+        host.style.cssText =
           'display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;width:100%;padding:4px 12px;box-sizing:border-box;';
-        form.appendChild(rowHost);
+        form.appendChild(host);
       }
     }
 
-    if (button.parentElement !== rowHost) {
-      rowHost.insertBefore(button, rowHost.firstChild);
-    } else if (button !== rowHost.firstChild) {
-      rowHost.insertBefore(button, rowHost.firstChild);
+    // Always place 译 + 🤔 immediately before the reply button so they sit
+    // inline with 回复 (and after the attachment icons when the toolbar is
+    // present).
+    if (button.parentElement !== host || button.nextSibling !== tweetButton) {
+      host.insertBefore(button, tweetButton);
     }
-    if (suggestButton.parentElement !== rowHost || suggestButton.previousSibling !== button) {
-      rowHost.insertBefore(suggestButton, button.nextSibling);
+    if (
+      suggestButton.parentElement !== host ||
+      suggestButton.previousSibling !== button ||
+      suggestButton.nextSibling !== tweetButton
+    ) {
+      host.insertBefore(suggestButton, tweetButton);
     }
   }
 
