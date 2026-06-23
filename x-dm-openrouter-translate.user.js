@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X DM OpenRouter Translator
 // @namespace    https://github.com/ame/x-chat-translate
-// @version      0.3.2
+// @version      0.3.3
 // @description  Translate selected X DMs and tweet comments to Chinese and draft Japanese replies.
 // @match        https://x.com/i/chat*
 // @match        https://twitter.com/i/chat*
