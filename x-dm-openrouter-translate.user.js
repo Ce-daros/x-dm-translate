@@ -1502,6 +1502,20 @@
 	function hasJapaneseText(text) {
 		return /[ぁ-んァ-ンー]/.test(text);
 	}
+	var CJK_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g;
+	var KANA_RE = /[\u3040-\u309F\u30A0-\u30FF]/;
+	var HANGUL_RE = /[\uAC00-\uD7AF]/;
+	function isChineseText(text, threshold = .3) {
+		if (!text) return false;
+		if (KANA_RE.test(text) || HANGUL_RE.test(text)) return false;
+		return (text.match(CJK_RE) || []).length / (text.replace(/[\s\p{P}\p{S}]/gu, "").length || 1) > threshold;
+	}
+	function hasXBuiltInTranslation(article) {
+		return [...article.querySelectorAll("button, a[role=\"link\"]")].some((node) => {
+			const text = (node.textContent || "").trim();
+			return text === "显示原文" || text === "显示翻译" || text === "Show original" || text === "Show translation" || text.startsWith("显示原文\n") || text.startsWith("显示翻译\n") || text.startsWith("Show original\n") || text.startsWith("Show translation\n");
+		});
+	}
 	function getConversationMessages(limit = 10, includeId = false) {
 		return [...document.querySelectorAll("[data-testid^=\"message-text-\"]")].map((node) => {
 			const text = cleanMessageText(node.innerText || "");
@@ -2683,7 +2697,6 @@
 		row.className = `xct-tweet-translation-row`;
 		const node = document.createElement("div");
 		node.className = `xct-tweet-translation`;
-		node.textContent = "…";
 		const button = document.createElement("button");
 		button.type = "button";
 		button.className = `xct-tweet-translate-btn`;
@@ -2748,9 +2761,13 @@
 	function scanTweetArticles() {
 		const articles = [...document.querySelectorAll("article[data-testid=\"tweet\"]")];
 		for (const article of articles) {
-			if (article.querySelector(`.xct-tweet-translation-row`)) continue;
 			const text = cleanMessageText(getTweetTextNode(article)?.innerText || "");
-			if (!text) continue;
+			if (!text || isChineseText(text) || hasXBuiltInTranslation(article)) {
+				const stale = article.querySelector(`.xct-tweet-translation-row`);
+				if (stale) stale.remove();
+				continue;
+			}
+			if (article.querySelector(`.xct-tweet-translation-row`)) continue;
 			const cacheKey = getTweetTranslationCacheKey(getArticleStatusId(article) || getTweetStatusId(), getTweetAuthorFromArticle(article), text);
 			if (state.scannedTweetKeys.has(cacheKey)) continue;
 			state.scannedTweetKeys.add(cacheKey);

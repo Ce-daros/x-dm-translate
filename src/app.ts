@@ -386,6 +386,44 @@ import { injectStyles } from './styles';
     return /[ぁ-んァ-ンー]/.test(text);
   }
 
+  // Chinese (Simplified or Traditional). Excludes kana / hangul so Japanese
+  // and Korean text don't get a 译 button. Threshold is the share of CJK
+  // Unified Ideographs over visible (non-whitespace, non-punctuation) chars.
+  const CJK_RE = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g;
+  const KANA_RE = /[\u3040-\u309F\u30A0-\u30FF]/;
+  const HANGUL_RE = /[\uAC00-\uD7AF]/;
+  function isChineseText(text, threshold = 0.3) {
+    if (!text) {
+      return false;
+    }
+    if (KANA_RE.test(text) || HANGUL_RE.test(text)) {
+      return false;
+    }
+    const cjk = (text.match(CJK_RE) || []).length;
+    const visible = text.replace(/[\s\p{P}\p{S}]/gu, '').length || 1;
+    return cjk / visible > threshold;
+  }
+
+  // X (Grok) auto-translates some tweets and shows a 显示原文 / Show original
+  // toggle. We defer to X in that case — adding our own 译 button would just
+  // duplicate work. Also covers the 显示翻译 / Show translation link, which
+  // means X has a translation ready and the user can reveal it.
+  function hasXBuiltInTranslation(article) {
+    return [...article.querySelectorAll('button, a[role="link"]')].some((node) => {
+      const text = (node.textContent || '').trim();
+      return (
+        text === '显示原文' ||
+        text === '显示翻译' ||
+        text === 'Show original' ||
+        text === 'Show translation' ||
+        text.startsWith('显示原文\n') ||
+        text.startsWith('显示翻译\n') ||
+        text.startsWith('Show original\n') ||
+        text.startsWith('Show translation\n')
+      );
+    });
+  }
+
   function getConversationMessages(limit = CHAT_CONTEXT_SIZE, includeId = false) {
     return [...document.querySelectorAll('[data-testid^="message-text-"]')]
       .map((node) => {
@@ -2008,7 +2046,6 @@ import { injectStyles } from './styles';
     row.className = `${SCRIPT_ID}-tweet-translation-row`;
     const node = document.createElement('div');
     node.className = `${SCRIPT_ID}-tweet-translation`;
-    node.textContent = '…';
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `${SCRIPT_ID}-tweet-translate-btn`;
@@ -2099,13 +2136,21 @@ import { injectStyles } from './styles';
   function scanTweetArticles() {
     const articles = [...document.querySelectorAll('article[data-testid="tweet"]')];
     for (const article of articles) {
-      if (article.querySelector(`.${SCRIPT_ID}-tweet-translation-row`)) {
+      const textNode = getTweetTextNode(article);
+      const text = cleanMessageText(textNode?.innerText || '');
+
+      // Chinese tweets, empty tweets, and tweets that X (Grok) has already
+      // translated don't need our 译 button. Strip any leftover row from
+      // older versions so the UI stays clean.
+      if (!text || isChineseText(text) || hasXBuiltInTranslation(article)) {
+        const stale = article.querySelector(`.${SCRIPT_ID}-tweet-translation-row`);
+        if (stale) {
+          stale.remove();
+        }
         continue;
       }
 
-      const textNode = getTweetTextNode(article);
-      const text = cleanMessageText(textNode?.innerText || '');
-      if (!text) {
+      if (article.querySelector(`.${SCRIPT_ID}-tweet-translation-row`)) {
         continue;
       }
 
