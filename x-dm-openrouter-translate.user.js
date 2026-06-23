@@ -2844,7 +2844,10 @@
 	}
 	function ensureTweetReplyButtons() {
 		const form = findComposerForm();
-		if (!form) return;
+		if (!form) {
+			hideReplyButtonFloater();
+			return;
+		}
 		const tweetButton = !document.querySelector("[data-testid=\"dm-composer-form\"]") ? document.querySelector("[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"], [data-testid=\"tweetButtonDisabled\"]") : null;
 		let button = document.getElementById(`xct-reply-button`);
 		if (!button) {
@@ -2885,30 +2888,40 @@
 		if (!tweetButton) {
 			if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
 			if (suggestButton.parentElement !== button.parentElement) button.insertAdjacentElement("afterend", suggestButton);
+			hideReplyButtonFloater();
 			return;
 		}
-		let host = document.querySelector("[data-testid=\"toolBar\"]");
-		if (!host) {
-			host = tweetButton.parentElement;
-			while (host && host.parentElement !== form) host = host.parentElement;
-			if (host) {
-				host.style.flexDirection = "row";
-				host.style.gap = "8px";
-				host.style.alignItems = "center";
-				host.style.justifyContent = "flex-end";
-			}
+		const floater = ensureReplyButtonFloater();
+		if (button.parentElement !== floater) floater.appendChild(button);
+		if (suggestButton.parentElement !== floater) floater.appendChild(suggestButton);
+		positionReplyButtonFloater(floater, tweetButton);
+	}
+	function ensureReplyButtonFloater() {
+		let floater = document.getElementById(`xct-reply-button-floater`);
+		if (!floater) {
+			floater = document.createElement("div");
+			floater.id = `xct-reply-button-floater`;
+			floater.style.cssText = "position:fixed;z-index:2147483646;display:flex;flex-direction:row;gap:4px;align-items:center;pointer-events:auto;";
+			document.body.appendChild(floater);
 		}
-		if (!host) {
-			host = document.getElementById(`xct-reply-button-row`);
-			if (!host) {
-				host = document.createElement("div");
-				host.id = `xct-reply-button-row`;
-				host.style.cssText = "display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;width:100%;padding:4px 12px;box-sizing:border-box;";
-				form.appendChild(host);
-			}
+		return floater;
+	}
+	function positionReplyButtonFloater(floater, tweetButton) {
+		const rect = tweetButton.getBoundingClientRect();
+		if (!rect.width || !rect.height) {
+			floater.style.display = "none";
+			return;
 		}
-		if (button.parentElement !== host || button.nextSibling !== tweetButton) host.insertBefore(button, tweetButton);
-		if (suggestButton.parentElement !== host || suggestButton.previousSibling !== button || suggestButton.nextSibling !== tweetButton) host.insertBefore(suggestButton, tweetButton);
+		floater.style.display = "flex";
+		const right = window.innerWidth - rect.left + 4;
+		floater.style.right = `${Math.max(8, right)}px`;
+		floater.style.top = `${Math.round(rect.top + rect.height / 2 - 16)}px`;
+		floater.style.left = "auto";
+		floater.style.bottom = "auto";
+	}
+	function hideReplyButtonFloater() {
+		const floater = document.getElementById(`xct-reply-button-floater`);
+		if (floater) floater.style.display = "none";
 	}
 	function registerMenuCommands() {
 		GM_registerMenuCommand("翻译设置", openSettingsPanel);
@@ -2976,6 +2989,11 @@
 		window.addEventListener("resize", placeReplyPanel);
 		window.addEventListener("resize", positionSuggestionsPanel);
 		window.addEventListener("scroll", positionSuggestionsPanel, true);
+		window.addEventListener("scroll", () => {
+			const floater = document.getElementById(`xct-reply-button-floater`);
+			const tweetButton = document.querySelector("[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"], [data-testid=\"tweetButtonDisabled\"]");
+			if (floater && tweetButton && floater.style.display !== "none") positionReplyButtonFloater(floater, tweetButton);
+		}, true);
 		setInterval(tick, 5e3);
 	}
 	start();

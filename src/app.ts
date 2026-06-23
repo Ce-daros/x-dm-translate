@@ -2267,6 +2267,7 @@ import { injectStyles } from './styles';
   function ensureTweetReplyButtons() {
     const form = findComposerForm();
     if (!form) {
+      hideReplyButtonFloater();
       return;
     }
 
@@ -2310,58 +2311,64 @@ import { injectStyles } from './styles';
     }
 
     if (!tweetButton) {
+      // No reply button on the page — keep the legacy fallback so we don't
+      // strand the buttons in an invisible floater.
       if (button.parentElement !== form.parentElement) {
         form.insertAdjacentElement('afterend', button);
       }
       if (suggestButton.parentElement !== button.parentElement) {
         button.insertAdjacentElement('afterend', suggestButton);
       }
+      hideReplyButtonFloater();
       return;
     }
 
-    // Choose the host:
-    //   focused state  -> [data-testid="toolBar"] (the row that holds the
-    //                    attachment nav + reply button)
-    //   unfocused state -> the column that directly wraps the reply button
-    //                    and is a direct child of the composer form. Force it
-    //                    to a row so 译 + 🤔 sit inline with 回复.
-    //   fallback        -> append a new row wrapper inside the form.
-    let host = document.querySelector('[data-testid="toolBar"]');
-    if (!host) {
-      host = tweetButton.parentElement;
-      while (host && host.parentElement !== form) {
-        host = host.parentElement;
-      }
-      if (host) {
-        host.style.flexDirection = 'row';
-        host.style.gap = '8px';
-        host.style.alignItems = 'center';
-        host.style.justifyContent = 'flex-end';
-      }
+    // Mount 译 + 🤔 into a fixed-position floater in <body>, not inside the
+    // composer form. The form re-renders constantly (focus, type, hover) and
+    // any child of it gets torn down with it; a body-level floater survives
+    // every form re-render and just tracks the reply button's position.
+    const floater = ensureReplyButtonFloater();
+    if (button.parentElement !== floater) {
+      floater.appendChild(button);
     }
-    if (!host) {
-      host = document.getElementById(`${SCRIPT_ID}-reply-button-row`);
-      if (!host) {
-        host = document.createElement('div');
-        host.id = `${SCRIPT_ID}-reply-button-row`;
-        host.style.cssText =
-          'display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;width:100%;padding:4px 12px;box-sizing:border-box;';
-        form.appendChild(host);
-      }
+    if (suggestButton.parentElement !== floater) {
+      floater.appendChild(suggestButton);
     }
+    positionReplyButtonFloater(floater, tweetButton);
+  }
 
-    // Always place 译 + 🤔 immediately before the reply button so they sit
-    // inline with 回复 (and after the attachment icons when the toolbar is
-    // present).
-    if (button.parentElement !== host || button.nextSibling !== tweetButton) {
-      host.insertBefore(button, tweetButton);
+  function ensureReplyButtonFloater() {
+    let floater = document.getElementById(`${SCRIPT_ID}-reply-button-floater`);
+    if (!floater) {
+      floater = document.createElement('div');
+      floater.id = `${SCRIPT_ID}-reply-button-floater`;
+      floater.style.cssText =
+        'position:fixed;z-index:2147483646;display:flex;flex-direction:row;gap:4px;align-items:center;pointer-events:auto;';
+      document.body.appendChild(floater);
     }
-    if (
-      suggestButton.parentElement !== host ||
-      suggestButton.previousSibling !== button ||
-      suggestButton.nextSibling !== tweetButton
-    ) {
-      host.insertBefore(suggestButton, tweetButton);
+    return floater;
+  }
+
+  function positionReplyButtonFloater(floater, tweetButton) {
+    const rect = tweetButton.getBoundingClientRect();
+    if (!rect.width || !rect.height) {
+      floater.style.display = 'none';
+      return;
+    }
+    floater.style.display = 'flex';
+    // Place 译 + 🤔 just to the left of 回复, vertically centered.
+    const gap = 4;
+    const right = window.innerWidth - rect.left + gap;
+    floater.style.right = `${Math.max(8, right)}px`;
+    floater.style.top = `${Math.round(rect.top + rect.height / 2 - 16)}px`;
+    floater.style.left = 'auto';
+    floater.style.bottom = 'auto';
+  }
+
+  function hideReplyButtonFloater() {
+    const floater = document.getElementById(`${SCRIPT_ID}-reply-button-floater`);
+    if (floater) {
+      floater.style.display = 'none';
     }
   }
 
@@ -2451,6 +2458,15 @@ import { injectStyles } from './styles';
     window.addEventListener('resize', placeReplyPanel);
     window.addEventListener('resize', positionSuggestionsPanel);
     window.addEventListener('scroll', positionSuggestionsPanel, true);
+    window.addEventListener('scroll', () => {
+      const floater = document.getElementById(`${SCRIPT_ID}-reply-button-floater`);
+      const tweetButton = document.querySelector(
+        '[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="tweetButtonDisabled"]',
+      );
+      if (floater && tweetButton && floater.style.display !== 'none') {
+        positionReplyButtonFloater(floater, tweetButton);
+      }
+    }, true);
     setInterval(tick, 5000);
   }
 
