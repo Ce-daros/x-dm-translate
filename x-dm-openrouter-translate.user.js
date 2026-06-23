@@ -2794,6 +2794,7 @@
 	function ensureTweetReplyButtons() {
 		const form = findComposerForm();
 		if (!form) return;
+		const tweetButton = !document.querySelector("[data-testid=\"dm-composer-form\"]") ? document.querySelector("[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"], [data-testid=\"tweetButtonDisabled\"]") : null;
 		let button = document.getElementById(`xct-reply-button`);
 		if (!button) {
 			button = document.createElement("button");
@@ -2803,7 +2804,6 @@
 			button.title = "翻译";
 			button.addEventListener("click", toggleReplyPanel);
 		}
-		if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
 		let suggestButton = document.getElementById(`xct-suggest-button`);
 		if (!suggestButton) {
 			suggestButton = document.createElement("button");
@@ -2813,7 +2813,18 @@
 			suggestButton.title = "建议回复";
 			suggestButton.addEventListener("click", handleTweetSuggestButtonClick);
 		}
-		if (suggestButton.parentElement !== form.parentElement) button.insertAdjacentElement("afterend", suggestButton);
+		if (!tweetButton) {
+			const anchor = form;
+			if (button.parentElement !== anchor.parentElement) anchor.insertAdjacentElement("afterend", button);
+			if (suggestButton.parentElement !== button.parentElement) button.insertAdjacentElement("afterend", suggestButton);
+			return;
+		}
+		let host = tweetButton.parentElement;
+		while (host && host !== form && host.parentElement && getComputedStyle(host).flexDirection !== "row") host = host.parentElement;
+		if (!host || host === form) host = tweetButton.parentElement;
+		if (button.parentElement !== host) host.insertBefore(button, host.firstChild);
+		else if (button !== host.firstChild) host.insertBefore(button, host.firstChild);
+		if (suggestButton.parentElement !== host || suggestButton.previousSibling !== button) host.insertBefore(suggestButton, button.nextSibling);
 	}
 	function registerMenuCommands() {
 		GM_registerMenuCommand("翻译设置", openSettingsPanel);
@@ -2857,8 +2868,8 @@
 			for (const map of [state.profileRetryAt, state.suggestionRetryAt]) for (const key of map.keys()) if (key !== currentProfileId) map.delete(key);
 		}
 		scanTweetArticles();
+		if (isTweetDetailPage()) ensureTweetReplyButtons();
 		if (isTargetConversation()) if (isTweetDetailPage()) {
-			ensureTweetReplyButtons();
 			ensureProgressBar();
 			ensureSuggestionsPanel();
 			positionSuggestionsPanel();

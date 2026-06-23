@@ -2204,6 +2204,13 @@ import { injectStyles } from './styles';
       return;
     }
 
+    const isTweetComposer = !document.querySelector('[data-testid="dm-composer-form"]');
+    const tweetButton = isTweetComposer
+      ? document.querySelector(
+          '[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="tweetButtonDisabled"]',
+        )
+      : null;
+
     let button = document.getElementById(`${SCRIPT_ID}-reply-button`);
     if (!button) {
       button = document.createElement('button');
@@ -2212,10 +2219,6 @@ import { injectStyles } from './styles';
       button.textContent = '译';
       button.title = '翻译';
       button.addEventListener('click', toggleReplyPanel);
-    }
-
-    if (button.parentElement !== form.parentElement) {
-      form.insertAdjacentElement('afterend', button);
     }
 
     let suggestButton = document.getElementById(`${SCRIPT_ID}-suggest-button`);
@@ -2228,8 +2231,32 @@ import { injectStyles } from './styles';
       suggestButton.addEventListener('click', handleTweetSuggestButtonClick);
     }
 
-    if (suggestButton.parentElement !== form.parentElement) {
-      button.insertAdjacentElement('afterend', suggestButton);
+    if (!tweetButton) {
+      const anchor = form;
+      if (button.parentElement !== anchor.parentElement) {
+        anchor.insertAdjacentElement('afterend', button);
+      }
+      if (suggestButton.parentElement !== button.parentElement) {
+        button.insertAdjacentElement('afterend', suggestButton);
+      }
+      return;
+    }
+
+    let host = tweetButton.parentElement;
+    while (host && host !== form && host.parentElement && getComputedStyle(host).flexDirection !== 'row') {
+      host = host.parentElement;
+    }
+    if (!host || host === form) {
+      host = tweetButton.parentElement;
+    }
+
+    if (button.parentElement !== host) {
+      host.insertBefore(button, host.firstChild);
+    } else if (button !== host.firstChild) {
+      host.insertBefore(button, host.firstChild);
+    }
+    if (suggestButton.parentElement !== host || suggestButton.previousSibling !== button) {
+      host.insertBefore(suggestButton, button.nextSibling);
     }
   }
 
@@ -2292,9 +2319,12 @@ import { injectStyles } from './styles';
 
     scanTweetArticles();
 
+    if (isTweetDetailPage()) {
+      ensureTweetReplyButtons();
+    }
+
     if (isTargetConversation()) {
       if (isTweetDetailPage()) {
-        ensureTweetReplyButtons();
         ensureProgressBar();
         ensureSuggestionsPanel();
         positionSuggestionsPanel();
