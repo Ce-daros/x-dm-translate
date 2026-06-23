@@ -2173,7 +2173,11 @@
 			button.type = "button";
 			button.textContent = "译";
 			button.title = "翻译";
-			button.addEventListener("click", toggleReplyPanel);
+			button.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				toggleReplyPanel();
+			});
 		}
 		if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
 		let suggestButton = document.getElementById(`xct-suggest-button`);
@@ -2183,7 +2187,11 @@
 			suggestButton.type = "button";
 			suggestButton.textContent = "🤔";
 			suggestButton.title = "建议对话";
-			suggestButton.addEventListener("click", handleSuggestButtonClick);
+			suggestButton.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				handleSuggestButtonClick();
+			});
 		}
 		if (suggestButton.parentElement !== form.parentElement) button.insertAdjacentElement("afterend", suggestButton);
 	}
@@ -2835,7 +2843,11 @@
 			button.type = "button";
 			button.textContent = "译";
 			button.title = "翻译";
-			button.addEventListener("click", toggleReplyPanel);
+			button.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				toggleReplyPanel();
+			});
 		}
 		let suggestButton = document.getElementById(`xct-suggest-button`);
 		if (!suggestButton) {
@@ -2844,7 +2856,11 @@
 			suggestButton.type = "button";
 			suggestButton.textContent = "🤔";
 			suggestButton.title = "建议回复";
-			suggestButton.addEventListener("click", handleTweetSuggestButtonClick);
+			suggestButton.addEventListener("click", (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				handleTweetSuggestButtonClick();
+			});
 		}
 		if (!tweetButton) {
 			if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
