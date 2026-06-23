@@ -1299,6 +1299,7 @@ import { injectStyles } from './styles';
     renderPromptRows();
     renderTaskLog();
     renderSettingStates();
+    renderTargetChips();
     renderTargetProfileRows();
     setSettingsStatus('');
     panel.classList.add('is-open');
@@ -1321,7 +1322,16 @@ import { injectStyles } from './styles';
       <section class="${SCRIPT_ID}-settings-section">
         <h3>基础</h3>
         <label>OpenRouter Key<span class="${SCRIPT_ID}-setting-state" data-setting-state="openRouterApiKey"></span><input name="openRouterApiKey" type="password" autocomplete="off"></label>
-        <label>目标 X ID<span class="${SCRIPT_ID}-setting-state" data-setting-state="targetXIds"></span><input name="targetXIds" placeholder="多个用逗号分隔，* 表示全部"></label>
+        <div class="${SCRIPT_ID}-target-section">
+          <label>目标会话 / X ID<span class="${SCRIPT_ID}-setting-state" data-setting-state="targetXIds"></span></label>
+          <div class="${SCRIPT_ID}-target-chips" id="${SCRIPT_ID}-target-chips"></div>
+          <div class="${SCRIPT_ID}-target-add">
+            <input type="text" data-target-input placeholder="输入 X ID 或 *">
+            <button type="button" data-action="add-target">添加</button>
+            <button type="button" data-action="use-current-target">当前会话</button>
+          </div>
+          <input type="hidden" name="targetXIds">
+        </div>
         <div class="${SCRIPT_ID}-target-profiles" id="${SCRIPT_ID}-target-profiles"></div>
         <label>我的资料<span class="${SCRIPT_ID}-setting-state" data-setting-state="myProfile"></span><textarea name="myProfile" rows="4" placeholder="性别、称呼、自称、关系"></textarea></label>
       </section>
@@ -1377,8 +1387,14 @@ import { injectStyles } from './styles';
       if (action === 'save') {
         saveSettingsFromPanel();
       }
-      if (action === 'use-current') {
+      if (action === 'use-current' || action === 'use-current-target') {
         useCurrentConversationAsTarget();
+      }
+      if (action === 'add-target') {
+        addTargetFromPanelInput();
+      }
+      if (action === 'remove-target') {
+        removeTargetFromPanel(trigger.dataset.targetId);
       }
       if (action === 'cache') {
         openCachePanel();
@@ -1401,7 +1417,12 @@ import { injectStyles } from './styles';
     });
 
     document.body.appendChild(panel);
-    panel.querySelector('[name="targetXIds"]')?.addEventListener('input', renderTargetProfileRows);
+    panel.querySelector('[data-target-input]')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        addTargetFromPanelInput();
+      }
+    });
     return panel;
   }
 
@@ -1624,20 +1645,83 @@ import { injectStyles } from './styles';
     );
   }
 
+  function getPanelTargetIds() {
+    const panel = document.getElementById(`${SCRIPT_ID}-settings-panel`);
+    const value = panel?.querySelector('[name="targetXIds"]')?.value || '';
+    return value
+      .split(',')
+      .map(normalizeId)
+      .filter(Boolean);
+  }
+
+  function setPanelTargetIds(ids) {
+    const panel = document.getElementById(`${SCRIPT_ID}-settings-panel`);
+    const input = panel?.querySelector('[name="targetXIds"]');
+    if (!input) {
+      return;
+    }
+    input.value = [...new Set(ids)].filter(Boolean).join(', ');
+    renderTargetChips();
+    renderTargetProfileRows();
+  }
+
+  function renderTargetChips() {
+    const container = document.getElementById(`${SCRIPT_ID}-target-chips`);
+    if (!container) {
+      return;
+    }
+    const targets = getPanelTargetIds();
+    if (!targets.length) {
+      container.replaceChildren();
+      return;
+    }
+    container.replaceChildren(
+      ...targets.map((id) => {
+        const chip = document.createElement('span');
+        chip.className = `${SCRIPT_ID}-target-chip`;
+        chip.innerHTML = `<code>@${id}</code><button type="button" data-action="remove-target" data-target-id="${id}" title="移除">×</button>`;
+        return chip;
+      }),
+    );
+  }
+
+  function addTargetFromPanelInput() {
+    const panel = document.getElementById(`${SCRIPT_ID}-settings-panel`);
+    const input = panel?.querySelector('[data-target-input]');
+    if (!input) {
+      return;
+    }
+    const raw = input.value.trim();
+    if (!raw) {
+      return;
+    }
+    const ids = raw.split(',').map(normalizeId).filter(Boolean);
+    if (!ids.length) {
+      return;
+    }
+    const current = getPanelTargetIds();
+    setPanelTargetIds([...current, ...ids]);
+    input.value = '';
+  }
+
+  function removeTargetFromPanel(targetId) {
+    const current = getPanelTargetIds().filter((id) => id !== targetId);
+    setPanelTargetIds(current);
+  }
+
   function useCurrentConversationAsTarget() {
     const conversationId = getConversationId();
     if (!conversationId) {
       setSettingsStatus('当前不是私信会话', true);
       return;
     }
-    saveSettings({ targetXIds: [conversationId] });
-    const panel = document.getElementById(`${SCRIPT_ID}-settings-panel`);
-    if (panel) {
-      panel.querySelector('[name="targetXIds"]').value = conversationId;
-      renderTargetProfileRows();
-      setSettingsStatus('已保存');
+    const current = getPanelTargetIds();
+    if (current.includes(conversationId)) {
+      setSettingsStatus('当前会话已在目标中');
+      return;
     }
-    scanMessages();
+    setPanelTargetIds([...current, conversationId]);
+    setSettingsStatus('已添加当前会话');
   }
 
   function clearCacheWithConfirm() {

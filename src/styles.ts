@@ -524,6 +524,105 @@ export function injectStyles() {
       gap: 8px;
     }
 
+    .${SCRIPT_ID}-target-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .${SCRIPT_ID}-target-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .${SCRIPT_ID}-target-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 4px 4px 10px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .${SCRIPT_ID}-target-chip code {
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .${SCRIPT_ID}-target-chip button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 0;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--xct-text-secondary);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .${SCRIPT_ID}-target-chip button:hover {
+      background: var(--xct-surface-hover);
+      color: var(--xct-text);
+    }
+
+    .${SCRIPT_ID}-target-add {
+      display: flex;
+      gap: 8px;
+    }
+
+    .${SCRIPT_ID}-target-add input {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .${SCRIPT_ID}-target-add input:focus {
+      border-color: var(--xct-accent);
+    }
+
+    .${SCRIPT_ID}-target-add button {
+      flex: 0 0 auto;
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background-color 150ms ease, border-color 150ms ease;
+    }
+
+    .${SCRIPT_ID}-target-add button:hover {
+      background: var(--xct-surface-hover);
+    }
+
+    .${SCRIPT_ID}-target-profiles {
+      display: grid;
+      gap: 12px;
+    }
+
     .${SCRIPT_ID}-modal label {
       display: grid;
       gap: 6px;

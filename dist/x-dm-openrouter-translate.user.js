@@ -657,6 +657,105 @@
       gap: 8px;
     }
 
+    .xct-target-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .xct-target-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .xct-target-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 4px 4px 10px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+    }
+
+    .xct-target-chip code {
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .xct-target-chip button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 0;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--xct-text-secondary);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+      transition: background-color 150ms ease, color 150ms ease;
+    }
+
+    .xct-target-chip button:hover {
+      background: var(--xct-surface-hover);
+      color: var(--xct-text);
+    }
+
+    .xct-target-add {
+      display: flex;
+      gap: 8px;
+    }
+
+    .xct-target-add input {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+    .xct-target-add input:focus {
+      border-color: var(--xct-accent);
+    }
+
+    .xct-target-add button {
+      flex: 0 0 auto;
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background-color 150ms ease, border-color 150ms ease;
+    }
+
+    .xct-target-add button:hover {
+      background: var(--xct-surface-hover);
+    }
+
+    .xct-target-profiles {
+      display: grid;
+      gap: 12px;
+    }
+
     .xct-modal label {
       display: grid;
       gap: 6px;
@@ -2000,6 +2099,7 @@
 		renderPromptRows();
 		renderTaskLog();
 		renderSettingStates();
+		renderTargetChips();
 		renderTargetProfileRows();
 		setSettingsStatus("");
 		panel.classList.add("is-open");
@@ -2018,7 +2118,16 @@
       <section class="xct-settings-section">
         <h3>基础</h3>
         <label>OpenRouter Key<span class="xct-setting-state" data-setting-state="openRouterApiKey"></span><input name="openRouterApiKey" type="password" autocomplete="off"></label>
-        <label>目标 X ID<span class="xct-setting-state" data-setting-state="targetXIds"></span><input name="targetXIds" placeholder="多个用逗号分隔，* 表示全部"></label>
+        <div class="xct-target-section">
+          <label>目标会话 / X ID<span class="xct-setting-state" data-setting-state="targetXIds"></span></label>
+          <div class="xct-target-chips" id="xct-target-chips"></div>
+          <div class="xct-target-add">
+            <input type="text" data-target-input placeholder="输入 X ID 或 *">
+            <button type="button" data-action="add-target">添加</button>
+            <button type="button" data-action="use-current-target">当前会话</button>
+          </div>
+          <input type="hidden" name="targetXIds">
+        </div>
         <div class="xct-target-profiles" id="xct-target-profiles"></div>
         <label>我的资料<span class="xct-setting-state" data-setting-state="myProfile"></span><textarea name="myProfile" rows="4" placeholder="性别、称呼、自称、关系"></textarea></label>
       </section>
@@ -2067,7 +2176,9 @@
 			const promptKey = trigger.dataset.prompt;
 			if (action === "close") panel.classList.remove("is-open");
 			if (action === "save") saveSettingsFromPanel();
-			if (action === "use-current") useCurrentConversationAsTarget();
+			if (action === "use-current" || action === "use-current-target") useCurrentConversationAsTarget();
+			if (action === "add-target") addTargetFromPanelInput();
+			if (action === "remove-target") removeTargetFromPanel(trigger.dataset.targetId);
 			if (action === "cache") openCachePanel();
 			if (action === "clear-cache") clearCacheWithConfirm();
 			if (action === "restore-prompts") restoreAllDefaults();
@@ -2076,7 +2187,12 @@
 			if (action === "restore-prompt") restorePromptDefault(promptKey);
 		});
 		document.body.appendChild(panel);
-		panel.querySelector("[name=\"targetXIds\"]")?.addEventListener("input", renderTargetProfileRows);
+		panel.querySelector("[data-target-input]")?.addEventListener("keydown", (event) => {
+			if (event.key === "Enter") {
+				event.preventDefault();
+				addTargetFromPanelInput();
+			}
+		});
 		return panel;
 	}
 	function saveSettingsFromPanel() {
@@ -2242,20 +2358,57 @@
 			return label;
 		}));
 	}
+	function getPanelTargetIds() {
+		return (document.getElementById(`xct-settings-panel`)?.querySelector("[name=\"targetXIds\"]")?.value || "").split(",").map(normalizeId).filter(Boolean);
+	}
+	function setPanelTargetIds(ids) {
+		const input = document.getElementById(`xct-settings-panel`)?.querySelector("[name=\"targetXIds\"]");
+		if (!input) return;
+		input.value = [...new Set(ids)].filter(Boolean).join(", ");
+		renderTargetChips();
+		renderTargetProfileRows();
+	}
+	function renderTargetChips() {
+		const container = document.getElementById(`xct-target-chips`);
+		if (!container) return;
+		const targets = getPanelTargetIds();
+		if (!targets.length) {
+			container.replaceChildren();
+			return;
+		}
+		container.replaceChildren(...targets.map((id) => {
+			const chip = document.createElement("span");
+			chip.className = `xct-target-chip`;
+			chip.innerHTML = `<code>@${id}</code><button type="button" data-action="remove-target" data-target-id="${id}" title="移除">×</button>`;
+			return chip;
+		}));
+	}
+	function addTargetFromPanelInput() {
+		const input = document.getElementById(`xct-settings-panel`)?.querySelector("[data-target-input]");
+		if (!input) return;
+		const raw = input.value.trim();
+		if (!raw) return;
+		const ids = raw.split(",").map(normalizeId).filter(Boolean);
+		if (!ids.length) return;
+		setPanelTargetIds([...getPanelTargetIds(), ...ids]);
+		input.value = "";
+	}
+	function removeTargetFromPanel(targetId) {
+		setPanelTargetIds(getPanelTargetIds().filter((id) => id !== targetId));
+	}
 	function useCurrentConversationAsTarget() {
 		const conversationId = getConversationId();
 		if (!conversationId) {
 			setSettingsStatus("当前不是私信会话", true);
 			return;
 		}
-		saveSettings({ targetXIds: [conversationId] });
-		const panel = document.getElementById(`xct-settings-panel`);
-		if (panel) {
-			panel.querySelector("[name=\"targetXIds\"]").value = conversationId;
-			renderTargetProfileRows();
-			setSettingsStatus("已保存");
+		const current = getPanelTargetIds();
+		if (current.includes(conversationId)) {
+			setSettingsStatus("当前会话已在目标中");
+			return;
 		}
-		scanMessages();
+		setPanelTargetIds([...current, conversationId]);
+		setSettingsStatus("已添加当前会话");
 	}
 	function clearCacheWithConfirm() {
 		if (!confirm("清空翻译缓存？")) return;
