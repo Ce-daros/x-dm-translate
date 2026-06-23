@@ -2173,9 +2173,14 @@
 			button.type = "button";
 			button.textContent = "译";
 			button.title = "翻译";
-			button.addEventListener("click", (event) => {
+			const stop = (event) => {
 				event.preventDefault();
 				event.stopPropagation();
+			};
+			button.addEventListener("pointerdown", stop);
+			button.addEventListener("mousedown", stop);
+			button.addEventListener("click", (event) => {
+				stop(event);
 				toggleReplyPanel();
 			});
 		}
@@ -2187,9 +2192,14 @@
 			suggestButton.type = "button";
 			suggestButton.textContent = "🤔";
 			suggestButton.title = "建议对话";
-			suggestButton.addEventListener("click", (event) => {
+			const stop = (event) => {
 				event.preventDefault();
 				event.stopPropagation();
+			};
+			suggestButton.addEventListener("pointerdown", stop);
+			suggestButton.addEventListener("mousedown", stop);
+			suggestButton.addEventListener("click", (event) => {
+				stop(event);
 				handleSuggestButtonClick();
 			});
 		}
@@ -2843,9 +2853,14 @@
 			button.type = "button";
 			button.textContent = "译";
 			button.title = "翻译";
-			button.addEventListener("click", (event) => {
+			const stop = (event) => {
 				event.preventDefault();
 				event.stopPropagation();
+			};
+			button.addEventListener("pointerdown", stop);
+			button.addEventListener("mousedown", stop);
+			button.addEventListener("click", (event) => {
+				stop(event);
 				toggleReplyPanel();
 			});
 		}
@@ -2856,9 +2871,14 @@
 			suggestButton.type = "button";
 			suggestButton.textContent = "🤔";
 			suggestButton.title = "建议回复";
-			suggestButton.addEventListener("click", (event) => {
+			const stop = (event) => {
 				event.preventDefault();
 				event.stopPropagation();
+			};
+			suggestButton.addEventListener("pointerdown", stop);
+			suggestButton.addEventListener("mousedown", stop);
+			suggestButton.addEventListener("click", (event) => {
+				stop(event);
 				handleTweetSuggestButtonClick();
 			});
 		}

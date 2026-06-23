@@ -1327,9 +1327,14 @@ import { injectStyles } from './styles';
       button.type = 'button';
       button.textContent = '译';
       button.title = '翻译';
+      // Stop X's composer from re-rendering when the user clicks our button.
+      // Without this, mousedown / pointerdown / click bubble up to the form
+      // and X tears down the reply panel before the user can see it.
+      const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
+      button.addEventListener('pointerdown', stop);
+      button.addEventListener('mousedown', stop);
       button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         toggleReplyPanel();
       });
     }
@@ -1345,9 +1350,11 @@ import { injectStyles } from './styles';
       suggestButton.type = 'button';
       suggestButton.textContent = '🤔';
       suggestButton.title = '建议对话';
+      const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
+      suggestButton.addEventListener('pointerdown', stop);
+      suggestButton.addEventListener('mousedown', stop);
       suggestButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         handleSuggestButtonClick();
       });
     }
@@ -2277,9 +2284,11 @@ import { injectStyles } from './styles';
       button.type = 'button';
       button.textContent = '译';
       button.title = '翻译';
+      const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
+      button.addEventListener('pointerdown', stop);
+      button.addEventListener('mousedown', stop);
       button.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         toggleReplyPanel();
       });
     }
@@ -2291,9 +2300,11 @@ import { injectStyles } from './styles';
       suggestButton.type = 'button';
       suggestButton.textContent = '🤔';
       suggestButton.title = '建议回复';
+      const stop = (event) => { event.preventDefault(); event.stopPropagation(); };
+      suggestButton.addEventListener('pointerdown', stop);
+      suggestButton.addEventListener('mousedown', stop);
       suggestButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+        stop(event);
         handleTweetSuggestButtonClick();
       });
     }
