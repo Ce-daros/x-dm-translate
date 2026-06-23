@@ -1,21 +1,25 @@
+[简体中文](README.zh-CN.md) · **[English](README.md)** · [日本語](README.ja.md) · [한국어](README.ko.md)
+
+---
+
 # x-dm-translate
 
-X (Twitter) 的 Tampermonkey 用户脚本：私信和推文翻译 + 日语回复草稿生成，后端走 OpenRouter。
+A Tampermonkey userscript for X (Twitter): translate DMs and tweets + draft Japanese replies. Backed by OpenRouter.
 
-- **私信（DM）**：进入目标会话后自动翻译收到的日文消息，可手动用「译」面板把中文草稿翻成 3 个日语候选。
-- **推文 / 评论**：每条 `article[data-testid="tweet"]` 下方出现「译」按钮，**手动点击**才会触发翻译（不再自动跑）。
-- **回退的缓存**：翻译结果按 `(model, profile, statusId/messageId, hash)` 缓存到 `GM_setValue`，下一次直接展示。
+- **Direct messages (DM)**: Auto-translate incoming Japanese messages in matched conversations; manually translate Chinese drafts into 3 Japanese candidates via the 「译」 panel.
+- **Tweets / comments**: A 「译」 button now appears under every `article[data-testid="tweet"]`. **Manual click** triggers translation — auto-translation is removed.
+- **Cache**: Translations are cached in `GM_setValue` keyed by `(model, profile, statusId/messageId, hash)`. Cached results render immediately on revisit.
 
-## 安装
+## Install
 
-1. 装 [Tampermonkey](https://www.tampermonkey.net/)（或 Violentmonkey）。
-2. 把 `dist/x-dm-openrouter-translate.user.js` 拖进浏览器安装；或者从仓库根的同文件名副本装也行（AGENTS.md 里约定的便利副本）。
-3. 打开 https://x.com/ ，Tampermonkey 菜单里选「翻译设置」。
-4. 填 **OpenRouter API key**（必填，没有就跑不了翻译），加目标 X ID（多个用逗号分隔，或填 `*` 表示全部）。
+1. Install [Tampermonkey](https://www.tampermonkey.net/) (or Violentmonkey).
+2. Drag `dist/x-dm-openrouter-translate.user.js` into the browser to install. The root-level copy of the same file is also valid (AGENTS.md convention).
+3. Open https://x.com/ and pick 「翻译设置」 from the Tampermonkey menu.
+4. Fill in your **OpenRouter API key** (required), add target X IDs (comma-separated, or `*` for all).
 
-> API key 只存在浏览器本地 `GM_setValue` 里，不会上传到任何服务器。源码和构建产物里都没有硬编码 key —— 安全审计可见 `grep "sk-"` 在 `src/` 和 `dist/` 下零命中。
+> The API key lives only in browser-local `GM_setValue` and is never sent to any server. The source and build artifacts contain zero hardcoded keys — a security audit `grep "sk-"` returns zero hits under `src/` and `dist/`.
 
-## 匹配范围
+## Match scope
 
 ```js
 match: [
@@ -26,91 +30,91 @@ match: [
 ]
 ```
 
-时间线 / 搜索页虽然不在 match 里，但脚本里通过 `article[data-testid="tweet"]` 选择器扫描，所以也会显示「译」按钮。需要在时间线上完全不显示，去 `tick()` 里把 `scanTweetArticles()` 调用删了。
+Timeline / search pages aren't in `match`, but the script scans by `article[data-testid="tweet"]` so the 「译」 button still appears there. To suppress it on timeline, remove the `scanTweetArticles()` call from `tick()`.
 
-## 开发
+## Development
 
 ```bash
 npm install
-npm run dev      # vite + vite-plugin-monkey，边改边热更新
-npm run build    # 产出 dist/x-dm-openrouter-translate.user.js
+npm run dev      # vite + vite-plugin-monkey, HMR
+npm run build    # outputs dist/x-dm-openrouter-translate.user.js
 npm run preview
 ```
 
-构建完手动把 `dist/x-dm-openrouter-translate.user.js` 复制一份到仓库根（`AGENTS.md` 的约定）。
+After build, manually copy `dist/x-dm-openrouter-translate.user.js` to the repo root (AGENTS.md convention).
 
-## 目录结构
+## Directory structure
 
 ```
 src/
-  app.ts        主逻辑：扫描、渲染、翻译队列、设置面板、回复面板、缓存面板
-  main.ts       入口，只调 start()
-  constants.ts  SCRIPT_ID、模型、URL、GM key 名等
-  prompts.ts    4 套 LLM prompt（私信翻译 / 回复翻译 / 建议对话 / 画像总结）
-  schemas.ts    OpenRouter json_schema 响应约束
-  state.ts      共享可变状态（translating 集合、profile 队列等）
-  styles.ts     注入到页面的 CSS
+  app.ts        Main logic: scan, render, translation queue, settings panel, reply panel, cache panel
+  main.ts       Entry, just calls start()
+  constants.ts  SCRIPT_ID, model, URL, GM keys, etc.
+  prompts.ts    4 LLM prompt templates (DM translation / reply translation / suggestions / profile summary)
+  schemas.ts    OpenRouter json_schema response constraints
+  state.ts      Shared mutable state (translating sets, profile queues, etc.)
+  styles.ts     CSS injected into the page
 ```
 
-`vite.config.ts` 里 `userscript.grant` 列了脚本需要的 `GM_*` 权限：`GM_xmlhttpRequest`、`GM_getValue`/`GM_setValue`/`GM_deleteValue`/`GM_listValues`、`GM_registerMenuCommand`、`unsafeWindow`，外加 `@connect openrouter.ai`。
+`vite.config.ts` `userscript.grant` lists the `GM_*` permissions the script needs: `GM_xmlhttpRequest`, `GM_getValue` / `GM_setValue` / `GM_deleteValue` / `GM_listValues`, `GM_registerMenuCommand`, `unsafeWindow`, plus `@connect openrouter.ai`.
 
-## 行为说明
+## Behavior
 
-### 推文 / 评论（v0.3 起）
+### Tweets / comments (since v0.3)
 
-- **不再自动翻译**。每条推文都会插一行 + 一个「译」按钮，**只有点按钮才触发翻译**。
-- 点按钮命中非日语内容时，槽位里写 `未检测到日语内容，跳过翻译`（避免静默失败）。
-- 已经翻译过的推文会立刻展示缓存，不需要再点。
-- DM 的自动翻译逻辑没动，仍受 `autoTranslate` 设置控制。
+- **No more auto-translation**. Every tweet gets a row with a 「译」 button; clicking it triggers translation.
+- If the clicked text isn't Japanese, the slot writes `未检测到日语内容，跳过翻译` (avoids silent failure).
+- Already-translated tweets render from cache immediately, no need to click again.
+- DM auto-translation is unchanged and still gated by the `autoTranslate` setting.
 
-### 私信（DM）
+### Direct messages (DM)
 
-- 命中 `targetXIds` 的会话才会扫；收到含日语的消息自动入翻译队列。
-- 队列上限 `maxConcurrentTranslations`（默认 6），超过排队。
-- 收到的消息每累计 10 条会更新对方的「画像摘要」，喂给后续翻译作为上下文。
+- Only conversations matching `targetXIds` are scanned; incoming messages containing Japanese are auto-queued for translation.
+- Queue limit is `maxConcurrentTranslations` (default 6); the rest wait in line.
+- Every 10 new incoming messages triggers a partner profile-summary update, fed into subsequent translations as context.
 
-### 回复草稿（DM 和推文详情页）
+### Reply drafts (DM and tweet detail pages)
 
-- DM 翻译面板里写中文 → 点翻译 → 出 3 个日语候选 + 中文解释；点候选填到输入框。
-- 推文详情页的「🤔」按钮基于主推文生成 3 条中文回复建议，同样点候选填到输入框。
+- DM translation panel: write Chinese → click translate → 3 Japanese candidates + Chinese notes; clicking a candidate fills it into the input box.
+- Tweet detail page 「🤔」 button: generates 3 Chinese reply drafts based on the main tweet; same click-to-fill behavior.
 
-## 缓存
+## Cache
 
-- 按 `(model, profileId, messageId/statusId, textHash)` 缓存。
-- 上限 `cacheLimit`（默认 800）条，超出按 LRU 淘汰。
-- 设置面板里可以「查看缓存」「清空缓存」。
+- Keyed by `(model, profileId, messageId/statusId, textHash)`.
+- Limit `cacheLimit` (default 800); LRU eviction.
+- The settings panel has 「查看缓存」 and 「清空缓存」 actions.
 
-## 设置项
+## Settings
 
-| key | 默认 | 说明 |
+| key | default | description |
 |---|---|---|
-| `openRouterApiKey` | `''` | OpenRouter key，必填 |
-| `targetXIds` | `[]` | 监听的 X ID 列表，`*` 表示全部 |
-| `userProfile` / `myProfile` | `''` | 自己的资料（性别、称呼、关系），影响翻译人称 |
-| `partnerProfile` | `''` | 默认对方资料 fallback |
-| `autoTranslate` | `true` | DM 自动翻译开关（不影响推文） |
-| `maxMessagesPerScan` | `30` | 单次扫描最多处理的消息数 |
-| `maxConcurrentTranslations` | `6` | 并发翻译数 |
-| `cacheLimit` | `800` | 缓存条目上限 |
-| `taskLogLimit` | `200` | 任务日志条数 |
+| `openRouterApiKey` | `''` | OpenRouter key, required |
+| `targetXIds` | `[]` | List of X IDs to monitor; `*` for all |
+| `userProfile` / `myProfile` | `''` | Your own profile (gender, address, relationship), affects translation pronouns |
+| `partnerProfile` | `''` | Default partner profile fallback |
+| `autoTranslate` | `true` | DM auto-translation toggle (does not affect tweets) |
+| `maxMessagesPerScan` | `30` | Max messages processed per scan |
+| `maxConcurrentTranslations` | `6` | Concurrent translation limit |
+| `cacheLimit` | `800` | Cache entry limit |
+| `taskLogLimit` | `200` | Task log entry limit |
 
-每条 prompt 也都能在设置面板里单独编辑 / 恢复默认。
+Every prompt template is also editable in the settings panel, with per-prompt 「恢复默认」.
 
-## 模型 / 后端
+## Model / backend
 
-- 模型：`deepseek/deepseek-v4-flash`（`src/constants.ts`）
-- URL：`https://openrouter.ai/api/v1/chat/completions`
-- Provider 限制：`{ only: ['cloudflare'] }`（走 Cloudflare 路由）
-- 请求里会带 `HTTP-Referer: <origin>` 和 `X-OpenRouter-Title: X DM Translator`，符合 OpenRouter 的归属要求
+- Model: `deepseek/deepseek-v4-flash` (`src/constants.ts`)
+- URL: `https://openrouter.ai/api/v1/chat/completions`
+- Provider restriction: `{ only: ['cloudflare'] }` (Cloudflare route)
+- Requests include `HTTP-Referer: <origin>` and `X-OpenRouter-Title: X DM Translator`, per OpenRouter attribution requirements
 
-## 已知限制
+## Known limitations
 
-- `unsafeWindow` 拿不到、但脚本又用了 `unsafeWindow.OPENROUTER_API_KEY` —— 那条路径只有在宿主页面里显式注入全局变量时才会命中，正常情况下走 `GM_getValue`。
-- OpenRouter 的 `isTrusted` 校验：所有请求都通过 `GM_xmlhttpRequest` 发出，不依赖 `event.isTrusted`。
-- 时间线只展示按钮 + 缓存，不调用任何 API；想看翻译必须点。
-- 评论区嵌套引用推文时，缓存键按文章自身的 `/status/<id>` 算，多层引用各自独立缓存。
+- `unsafeWindow` is declared but only used for `unsafeWindow.OPENROUTER_API_KEY` — that path only fires if the host page explicitly exposes a global; otherwise falls back to `GM_getValue`.
+- All requests go through `GM_xmlhttpRequest`, not dependent on `event.isTrusted`.
+- Timeline only renders buttons + cache; nothing is auto-called. Click to translate.
+- For quoted / replied nested tweets, cache key uses each article's own `/status/<id>`; nested layers cache independently.
 
-## 版本
+## Version
 
-- 0.3.0 起，推文/评论的翻译由自动改为手动。
-- 0.2.x 及之前：推文只在详情页且设置 `autoTranslate=true` 时自动跑。
+- v0.3.0: tweet / comment translation switched from auto to manual.
+- v0.2.x and earlier: tweets auto-translated only on detail pages with `autoTranslate=true`.
