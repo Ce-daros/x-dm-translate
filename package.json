@@ -1,0 +1,17 @@
+{
+  "name": "x-dm-translate",
+  "version": "0.2.4",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "description": "X DM OpenRouter Translator",
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-monkey": "^8.0.6"
+  }
+}

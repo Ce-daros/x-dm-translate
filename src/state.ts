@@ -1,0 +1,16 @@
+export const state = {
+  seenConversationId: '',
+  lastSeenLatestMessageKey: '',
+  translating: new Set(),
+  pending: new Map(),
+  activeTranslations: 0,
+  profileUpdating: new Set(),
+  profilePending: new Map(),
+  suggestionUpdating: new Set(),
+  profileRetryAt: new Map(),
+  suggestionRetryAt: new Map(),
+  activeTasks: 0,
+  totalTasks: 0,
+  finishedTasks: 0,
+  scannedMessageKeys: new Set(),
+};

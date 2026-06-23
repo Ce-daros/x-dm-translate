@@ -1,0 +1,15 @@
+export const SCRIPT_ID = 'xct';
+export const MODEL = 'deepseek/deepseek-v4-flash';
+export const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+export const ENV_OPENROUTER_API_KEY = '';
+export const CHAT_CONTEXT_SIZE = 10;
+export const PROFILE_BATCH_SIZE = 10;
+export const MAX_COMPLETION_TOKENS = 8192;
+export const CACHE_INDEX_KEY = 'translationCacheIndex:v2';
+export const PARTNER_SUMMARIES_KEY = 'partnerProfileSummaries:v1';
+export const PARTNER_SUMMARY_SEEN_KEY = 'partnerProfileSummarySeen:v1';
+export const PARTNER_PROFILE_BATCHES_KEY = 'partnerProfileBatches:v1';
+export const CONVERSATION_SUGGESTIONS_KEY = 'conversationSuggestions:v1';
+export const TASK_LOGS_KEY = 'taskLogs:v1';
+export const PROMPT_OVERRIDES_KEY = 'promptOverrides:v1';
+export const PARTNER_PROFILES_KEY = 'partnerProfiles:v1';
