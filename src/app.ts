@@ -1263,6 +1263,57 @@ import { injectStyles } from './styles';
     element.focus();
   }
 
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => showToast('已复制到剪贴板'),
+        () => fallbackCopy(text),
+      );
+      return;
+    }
+    fallbackCopy(text);
+  }
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:-1000px;left:-1000px;opacity:0;pointer-events:none;';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    document.body.removeChild(ta);
+    showToast(ok ? '已复制到剪贴板' : '复制失败，请手动复制');
+  }
+
+  function showToast(message, duration = 1800) {
+    let toast = document.getElementById(`${SCRIPT_ID}-toast`);
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = `${SCRIPT_ID}-toast`;
+      toast.addEventListener('transitionend', () => {
+        if (!toast.classList.contains('is-visible') && toast._hideTimer) {
+          clearTimeout(toast._hideTimer);
+          toast._hideTimer = null;
+        }
+      });
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('is-visible');
+    if (toast._hideTimer) {
+      clearTimeout(toast._hideTimer);
+    }
+    toast._hideTimer = window.setTimeout(() => {
+      toast.classList.remove('is-visible');
+    }, duration);
+  }
+
   function ensureReplyButton() {
     const form = findComposerForm();
     if (!form) {
@@ -1321,7 +1372,7 @@ import { injectStyles } from './styles';
     panel.querySelector(`.${SCRIPT_ID}-tone-list`).addEventListener('click', (event) => {
       const button = event.target.closest(`.${SCRIPT_ID}-tone`);
       if (button?.dataset.text) {
-        setComposerValue(button.dataset.text);
+        copyTextToClipboard(button.dataset.text);
         panel.classList.remove('is-open');
       }
     });
@@ -2232,9 +2283,8 @@ import { injectStyles } from './styles';
     }
 
     if (!tweetButton) {
-      const anchor = form;
-      if (button.parentElement !== anchor.parentElement) {
-        anchor.insertAdjacentElement('afterend', button);
+      if (button.parentElement !== form.parentElement) {
+        form.insertAdjacentElement('afterend', button);
       }
       if (suggestButton.parentElement !== button.parentElement) {
         button.insertAdjacentElement('afterend', suggestButton);
@@ -2242,21 +2292,34 @@ import { injectStyles } from './styles';
       return;
     }
 
-    let host = tweetButton.parentElement;
-    while (host && host !== form && host.parentElement && getComputedStyle(host).flexDirection !== 'row') {
-      host = host.parentElement;
+    let rowHost = null;
+    for (let host = tweetButton.parentElement; host && host !== form; host = host.parentElement) {
+      if (getComputedStyle(host).flexDirection === 'row') {
+        rowHost = host;
+        break;
+      }
     }
-    if (!host || host === form) {
-      host = tweetButton.parentElement;
+    if (!rowHost && getComputedStyle(form).flexDirection === 'row') {
+      rowHost = form;
+    }
+    if (!rowHost) {
+      rowHost = document.getElementById(`${SCRIPT_ID}-reply-button-row`);
+      if (!rowHost) {
+        rowHost = document.createElement('div');
+        rowHost.id = `${SCRIPT_ID}-reply-button-row`;
+        rowHost.style.cssText =
+          'display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;width:100%;padding:4px 12px;box-sizing:border-box;';
+        form.appendChild(rowHost);
+      }
     }
 
-    if (button.parentElement !== host) {
-      host.insertBefore(button, host.firstChild);
-    } else if (button !== host.firstChild) {
-      host.insertBefore(button, host.firstChild);
+    if (button.parentElement !== rowHost) {
+      rowHost.insertBefore(button, rowHost.firstChild);
+    } else if (button !== rowHost.firstChild) {
+      rowHost.insertBefore(button, rowHost.firstChild);
     }
-    if (suggestButton.parentElement !== host || suggestButton.previousSibling !== button) {
-      host.insertBefore(suggestButton, button.nextSibling);
+    if (suggestButton.parentElement !== rowHost || suggestButton.previousSibling !== button) {
+      rowHost.insertBefore(suggestButton, button.nextSibling);
     }
   }
 

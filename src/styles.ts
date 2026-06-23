@@ -285,6 +285,35 @@ export function injectStyles() {
       background: var(--xct-accent-hover);
     }
 
+    #${SCRIPT_ID}-toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 2147483647;
+      max-width: min(320px, calc(100vw - 48px));
+      padding: 10px 16px;
+      background: rgba(15, 20, 25, 0.94);
+      color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      font-size: 14px;
+      line-height: 1.35;
+      letter-spacing: 0.01em;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+      transition: opacity 180ms ease, transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #${SCRIPT_ID}-toast.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    #${SCRIPT_ID}-reply-button-row {
+      min-height: 32px;
+    }
+
     #${SCRIPT_ID}-reply-panel {
       position: fixed;
       z-index: 2147483647;

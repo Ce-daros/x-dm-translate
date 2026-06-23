@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X DM OpenRouter Translator
 // @namespace    https://github.com/ame/x-chat-translate
-// @version      0.3.0
+// @version      0.3.1
 // @description  Translate selected X DMs and tweet comments to Chinese and draft Japanese replies.
 // @match        https://x.com/i/chat*
 // @match        https://twitter.com/i/chat*
@@ -423,6 +423,35 @@
     #xct-reply-button:hover,
     #xct-suggest-button:hover {
       background: var(--xct-accent-hover);
+    }
+
+    #xct-toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 2147483647;
+      max-width: min(320px, calc(100vw - 48px));
+      padding: 10px 16px;
+      background: rgba(15, 20, 25, 0.94);
+      color: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+      font-size: 14px;
+      line-height: 1.35;
+      letter-spacing: 0.01em;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+      transition: opacity 180ms ease, transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #xct-toast.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    #xct-reply-button-row {
+      min-height: 32px;
     }
 
     #xct-reply-panel {
@@ -1958,9 +1987,6 @@
 	function findComposerForm() {
 		return document.querySelector("[data-testid=\"dm-composer-form\"]") || findTweetComposerContainer();
 	}
-	function findComposerTextarea() {
-		return document.querySelector("[data-testid=\"dm-composer-textarea\"]") || document.querySelector("[data-testid=\"tweetTextarea_0\"]");
-	}
 	function findTweetComposerContainer() {
 		const textarea = document.querySelector("[data-testid=\"tweetTextarea_0\"]");
 		const button = document.querySelector("[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"], [data-testid=\"tweetButtonDisabled\"]");
@@ -2094,41 +2120,48 @@
 		if (record?.suggestions?.length) renderSuggestionChoices(record.suggestions);
 		else panel.replaceChildren();
 	}
-	function setComposerValue(value) {
-		const textarea = findComposerTextarea();
-		if (!textarea) throw new Error("找不到输入框");
-		if (textarea.getAttribute("contenteditable") === "true" || textarea.isContentEditable) {
-			setContentEditableValue(textarea, value);
+	function copyTextToClipboard(text) {
+		if (navigator.clipboard?.writeText) {
+			navigator.clipboard.writeText(text).then(() => showToast("已复制到剪贴板"), () => fallbackCopy(text));
 			return;
 		}
-		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(textarea, value);
-		textarea.dispatchEvent(new InputEvent("input", {
-			bubbles: true,
-			inputType: "insertText",
-			data: value
-		}));
-		textarea.dispatchEvent(new Event("change", { bubbles: true }));
-		textarea.focus();
+		fallbackCopy(text);
 	}
-	function setContentEditableValue(element, value) {
-		element.focus();
-		const selection = window.getSelection();
-		const range = document.createRange();
-		range.selectNodeContents(element);
-		range.deleteContents();
-		const textNode = document.createTextNode(value);
-		range.insertNode(textNode);
-		range.selectNodeContents(textNode);
-		range.collapse(false);
-		selection.removeAllRanges();
-		selection.addRange(range);
-		element.dispatchEvent(new InputEvent("input", {
-			bubbles: true,
-			inputType: "insertText",
-			data: value
-		}));
-		element.dispatchEvent(new Event("change", { bubbles: true }));
-		element.focus();
+	function fallbackCopy(text) {
+		const ta = document.createElement("textarea");
+		ta.value = text;
+		ta.setAttribute("readonly", "");
+		ta.style.cssText = "position:fixed;top:-1000px;left:-1000px;opacity:0;pointer-events:none;";
+		document.body.appendChild(ta);
+		ta.select();
+		let ok = false;
+		try {
+			ok = document.execCommand("copy");
+		} catch (e) {
+			ok = false;
+		}
+		document.body.removeChild(ta);
+		showToast(ok ? "已复制到剪贴板" : "复制失败，请手动复制");
+	}
+	function showToast(message, duration = 1800) {
+		let toast = document.getElementById(`xct-toast`);
+		if (!toast) {
+			toast = document.createElement("div");
+			toast.id = `xct-toast`;
+			toast.addEventListener("transitionend", () => {
+				if (!toast.classList.contains("is-visible") && toast._hideTimer) {
+					clearTimeout(toast._hideTimer);
+					toast._hideTimer = null;
+				}
+			});
+			document.body.appendChild(toast);
+		}
+		toast.textContent = message;
+		toast.classList.add("is-visible");
+		if (toast._hideTimer) clearTimeout(toast._hideTimer);
+		toast._hideTimer = window.setTimeout(() => {
+			toast.classList.remove("is-visible");
+		}, duration);
 	}
 	function ensureReplyButton() {
 		const form = findComposerForm();
@@ -2173,7 +2206,7 @@
 		panel.querySelector(`.xct-tone-list`).addEventListener("click", (event) => {
 			const button = event.target.closest(`.xct-tone`);
 			if (button?.dataset.text) {
-				setComposerValue(button.dataset.text);
+				copyTextToClipboard(button.dataset.text);
 				panel.classList.remove("is-open");
 			}
 		});
@@ -2814,17 +2847,28 @@
 			suggestButton.addEventListener("click", handleTweetSuggestButtonClick);
 		}
 		if (!tweetButton) {
-			const anchor = form;
-			if (button.parentElement !== anchor.parentElement) anchor.insertAdjacentElement("afterend", button);
+			if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
 			if (suggestButton.parentElement !== button.parentElement) button.insertAdjacentElement("afterend", suggestButton);
 			return;
 		}
-		let host = tweetButton.parentElement;
-		while (host && host !== form && host.parentElement && getComputedStyle(host).flexDirection !== "row") host = host.parentElement;
-		if (!host || host === form) host = tweetButton.parentElement;
-		if (button.parentElement !== host) host.insertBefore(button, host.firstChild);
-		else if (button !== host.firstChild) host.insertBefore(button, host.firstChild);
-		if (suggestButton.parentElement !== host || suggestButton.previousSibling !== button) host.insertBefore(suggestButton, button.nextSibling);
+		let rowHost = null;
+		for (let host = tweetButton.parentElement; host && host !== form; host = host.parentElement) if (getComputedStyle(host).flexDirection === "row") {
+			rowHost = host;
+			break;
+		}
+		if (!rowHost && getComputedStyle(form).flexDirection === "row") rowHost = form;
+		if (!rowHost) {
+			rowHost = document.getElementById(`xct-reply-button-row`);
+			if (!rowHost) {
+				rowHost = document.createElement("div");
+				rowHost.id = `xct-reply-button-row`;
+				rowHost.style.cssText = "display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-end;width:100%;padding:4px 12px;box-sizing:border-box;";
+				form.appendChild(rowHost);
+			}
+		}
+		if (button.parentElement !== rowHost) rowHost.insertBefore(button, rowHost.firstChild);
+		else if (button !== rowHost.firstChild) rowHost.insertBefore(button, rowHost.firstChild);
+		if (suggestButton.parentElement !== rowHost || suggestButton.previousSibling !== button) rowHost.insertBefore(suggestButton, button.nextSibling);
 	}
 	function registerMenuCommands() {
 		GM_registerMenuCommand("翻译设置", openSettingsPanel);
