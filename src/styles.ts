@@ -149,6 +149,9 @@ export function injectStyles() {
 
     #${SCRIPT_ID}-suggestions {
       position: fixed;
+      top: auto;
+      right: auto;
+      bottom: auto;
       z-index: 2147483646;
       display: grid;
       grid-template-columns: auto repeat(3, minmax(0, 1fr));
@@ -159,8 +162,10 @@ export function injectStyles() {
       transform: translateY(4px) scale(0.98);
       pointer-events: none;
       transition: left 240ms cubic-bezier(0.16, 1, 0.3, 1),
+                  top 240ms cubic-bezier(0.16, 1, 0.3, 1),
                   width 240ms cubic-bezier(0.16, 1, 0.3, 1),
                   bottom 240ms cubic-bezier(0.16, 1, 0.3, 1),
+                  max-height 240ms cubic-bezier(0.16, 1, 0.3, 1),
                   opacity 180ms ease,
                   transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
     }
@@ -169,6 +174,18 @@ export function injectStyles() {
       opacity: 1;
       transform: translateY(0) scale(1);
       pointer-events: auto;
+    }
+
+    #${SCRIPT_ID}-suggestions.is-right {
+      grid-template-columns: 1fr;
+      align-content: start;
+      gap: 8px;
+      padding: 12px;
+      border-left: 1px solid var(--xct-border);
+      border-radius: 0;
+      background: var(--xct-surface);
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .${SCRIPT_ID}-suggestion-refresh {
@@ -183,7 +200,15 @@ export function injectStyles() {
       cursor: pointer;
       font-size: 16px;
       line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+
+    #${SCRIPT_ID}-suggestions.is-right .${SCRIPT_ID}-suggestion-refresh {
+      grid-row: auto;
+      margin: 0 0 4px;
     }
 
     .${SCRIPT_ID}-suggestion-refresh:hover {
@@ -825,11 +850,11 @@ export function injectStyles() {
     }
 
     @media (max-width: 720px) {
-      #${SCRIPT_ID}-suggestions {
+      #${SCRIPT_ID}-suggestions:not(.is-right) {
         grid-template-columns: auto 1fr;
       }
 
-      .${SCRIPT_ID}-suggestion-refresh {
+      #${SCRIPT_ID}-suggestions:not(.is-right) .${SCRIPT_ID}-suggestion-refresh {
         grid-row: 1 / -1;
       }
 

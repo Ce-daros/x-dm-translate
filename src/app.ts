@@ -374,7 +374,9 @@ import { injectStyles } from './styles';
           summary: summary?.summary || '',
         },
       },
-      messages: getConversationMessages(),
+      messages: getConversationMessages().map((message) =>
+        `${message.speaker === 'me' ? '【我】' : '【对方】'}${message.text}`,
+      ),
       latestMessage,
     };
   }
@@ -1033,12 +1035,35 @@ import { injectStyles } from './styles';
       return;
     }
 
-    const formRect = form.getBoundingClientRect();
-    const replyButtonRect = document.getElementById(`${SCRIPT_ID}-reply-button`)?.getBoundingClientRect();
-    const right = replyButtonRect?.right || formRect.right;
-    panel.style.left = `${Math.round(formRect.left)}px`;
-    panel.style.width = `${Math.round(right - formRect.left)}px`;
-    panel.style.bottom = `${Math.round(window.innerHeight - formRect.top + 8)}px`;
+    const primaryColumn = document.querySelector('[data-testid="primaryColumn"]');
+    const viewportWidth = window.innerWidth;
+    const canDockRight = primaryColumn && viewportWidth > 1024;
+
+    if (canDockRight) {
+      const rect = primaryColumn.getBoundingClientRect();
+      const gap = 12;
+      const width = Math.min(320, Math.max(220, viewportWidth - rect.right - gap * 2));
+      panel.style.position = 'fixed';
+      panel.style.left = `${Math.round(rect.right + gap)}px`;
+      panel.style.right = 'auto';
+      panel.style.width = `${Math.round(width)}px`;
+      panel.style.top = `${Math.round(rect.top + gap)}px`;
+      panel.style.bottom = 'auto';
+      panel.style.maxHeight = `${Math.round(rect.height - gap * 2)}px`;
+      panel.classList.add('is-right');
+    } else {
+      const formRect = form.getBoundingClientRect();
+      const replyButtonRect = document.getElementById(`${SCRIPT_ID}-reply-button`)?.getBoundingClientRect();
+      const right = replyButtonRect?.right || formRect.right;
+      panel.style.position = 'fixed';
+      panel.style.left = `${Math.round(formRect.left)}px`;
+      panel.style.right = 'auto';
+      panel.style.width = `${Math.round(right - formRect.left)}px`;
+      panel.style.top = 'auto';
+      panel.style.bottom = `${Math.round(window.innerHeight - formRect.top + 8)}px`;
+      panel.style.maxHeight = '';
+      panel.classList.remove('is-right');
+    }
   }
 
   function setReplyDraftAndTranslate(text) {
