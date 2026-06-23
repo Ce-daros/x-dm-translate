@@ -10,6 +10,7 @@ export const PARTNER_SUMMARIES_KEY = 'partnerProfileSummaries:v1';
 export const PARTNER_SUMMARY_SEEN_KEY = 'partnerProfileSummarySeen:v1';
 export const PARTNER_PROFILE_BATCHES_KEY = 'partnerProfileBatches:v1';
 export const CONVERSATION_SUGGESTIONS_KEY = 'conversationSuggestions:v1';
+export const TWEET_SUGGESTIONS_KEY = 'tweetReplySuggestions:v1';
 export const TASK_LOGS_KEY = 'taskLogs:v1';
 export const PROMPT_OVERRIDES_KEY = 'promptOverrides:v1';
 export const PARTNER_PROFILES_KEY = 'partnerProfiles:v1';

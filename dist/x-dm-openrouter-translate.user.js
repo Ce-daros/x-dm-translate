@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         X DM OpenRouter Translator
 // @namespace    https://github.com/ame/x-chat-translate
-// @version      0.2.4
-// @description  Translate selected X DMs to Chinese and draft Japanese replies.
+// @version      0.3.0
+// @description  Translate selected X DMs and tweet comments to Chinese and draft Japanese replies.
 // @match        https://x.com/i/chat*
 // @match        https://twitter.com/i/chat*
+// @match        https://x.com/*/status/*
+// @match        https://twitter.com/*/status/*
 // @connect      openrouter.ai
 // @grant        GM_deleteValue
 // @grant        GM_getValue
@@ -26,6 +28,7 @@
 	var PARTNER_SUMMARY_SEEN_KEY = "partnerProfileSummarySeen:v1";
 	var PARTNER_PROFILE_BATCHES_KEY = "partnerProfileBatches:v1";
 	var CONVERSATION_SUGGESTIONS_KEY = "conversationSuggestions:v1";
+	var TWEET_SUGGESTIONS_KEY = "tweetReplySuggestions:v1";
 	var TASK_LOGS_KEY = "taskLogs:v1";
 	var PROMPT_OVERRIDES_KEY = "promptOverrides:v1";
 	var PARTNER_PROFILES_KEY = "partnerProfiles:v1";
@@ -33,7 +36,9 @@
 		incomingTranslation: "你负责翻译 X 私信。根据双方资料、长期画像、主题状态和最近 10 条双方消息，把目标日语消息翻译成自然的简体中文。双方资料优先级高于上下文推断，用它判断人称、性别、称呼、关系和代词。严格只翻译目标消息，不解释、不总结、不补充事实、不替说话者圆场，不把上下文里没有的意思写进译文。保留原文换行、表情、暧昧程度和语气。只按 schema 返回 JSON。",
 		replyTranslation: "你负责把中文私信翻译成日语。结合双方资料、长期画像、主题状态和最近 10 条双方消息，返回三个自然可直接发送的日语候选。双方资料优先级高于上下文推断，用它决定人称、性别、称呼、关系、代词和自称。严格忠实中文草稿的意思，不添加新信息、不删改关键含义、不擅自道歉或解释；只允许为了日语自然度和候选风格做轻微语气调整。不要使用固定风格模板；由你自行选择三个适合当前关系和语境的风格名。每个候选包含风格名、中文简短解释和日语正文。只按 schema 返回 JSON。",
 		conversationSuggestions: "你是 X 私信对话建议助手。messages 中每条消息都标注了说话者：【我】代表当前用户，【对方】代表聊天对象。请严格基于双方资料、长期画像、主题状态、最近 10 条双方消息和最近一条消息，给出三个当前用户（我）可继续对话的中文草稿。注意区分消息来源，不要把我的话当成对方的话。三个建议应代表不同对话意图，不是固定语气模板。严格基于原对话，不制造不存在的事实、邀约、承诺或情绪。每条包含短标签、中文说明和中文草稿。只按 schema 返回 JSON。",
-		partnerSummary: "你维护 X 私信对方的长期画像摘要。画像只在累计 10 条新的对方消息后更新。根据旧画像、这 10 条新的对方消息、最近 10 条双方上下文和最新消息更新画像；若没有旧画像，就从这些材料中新建画像。只记录对理解翻译、人称、称呼、关系、兴趣、偏好、语气有用的信息。不要编造；不确定就不要写。摘要用简体中文，短而密，保留稳定事实和高置信倾向。只按 schema 返回 JSON。"
+		partnerSummary: "你维护 X 私信对方的长期画像摘要。画像只在累计 10 条新的对方消息后更新。根据旧画像、这 10 条新的对方消息、最近 10 条双方上下文和最新消息更新画像；若没有旧画像，就从这些材料中新建画像。只记录对理解翻译、人称、称呼、关系、兴趣、偏好、语气有用的信息。不要编造；不确定就不要写。摘要用简体中文，短而密，保留稳定事实和高置信倾向。只按 schema 返回 JSON。",
+		tweetTranslation: "你负责翻译 X 帖子或评论。根据帖子作者资料（如有），把目标日语内容翻译成自然的简体中文。严格只翻译目标内容，不解释、不总结、不补充事实、不替说话者圆场，不把上下文里没有的意思写进译文。保留原文换行、表情、暧昧程度和语气。只按 schema 返回 JSON。",
+		tweetReplySuggestions: "你是 X 帖子回复建议助手。请基于帖子原文、帖子作者资料（如有）和我的资料（如有），给出三个适合当前用户回复该帖子的中文草稿。三个建议应代表不同回复意图，不是固定语气模板。严格基于原帖，不制造不存在的事实、邀约、承诺或情绪。每条包含短标签、中文说明和中文草稿。只按 schema 返回 JSON。"
 	};
 	function jsonSchemaFormat(name, schema) {
 		return {
@@ -122,6 +127,7 @@
 	});
 	var state = {
 		seenConversationId: "",
+		seenPathname: "",
 		lastSeenLatestMessageKey: "",
 		translating: new Set(),
 		pending: new Map(),
@@ -134,7 +140,8 @@
 		activeTasks: 0,
 		totalTasks: 0,
 		finishedTasks: 0,
-		scannedMessageKeys: new Set()
+		scannedMessageKeys: new Set(),
+		scannedTweetKeys: new Set()
 	};
 	function injectStyles() {
 		if (document.getElementById(`xct-style`)) return;
@@ -1126,12 +1133,67 @@
       .xct-modal button,
       .xct-primary,
       .xct-cache-search,
-      .xct-cache-item {
+      .xct-cache-item,
+      .xct-tweet-translation-row,
+      .xct-tweet-translate-btn {
         transition: none !important;
         animation: none !important;
       }
     }
 
+
+
+    .xct-tweet-translation-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 4px;
+      padding: 4px 0 8px;
+      animation: xct-fade-in-up 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .xct-tweet-translation {
+      flex: 1 1 auto;
+      color: var(--xct-text-secondary);
+      font-size: 14px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .xct-tweet-translate-btn {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text-secondary);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+
+    .xct-tweet-translate-btn:hover {
+      background: var(--xct-surface-hover);
+      border-color: var(--xct-accent);
+      color: var(--xct-accent);
+    }
+
+    #xct-progress {
+      position: absolute;
+    }
+
+    [data-testid="dm-composer-form"],
+    .xct-tweet-composer {
+      position: relative;
+    }
   `;
 		document.head.appendChild(style);
 	}
@@ -1347,20 +1409,52 @@
 	function normalizeId(value) {
 		return String(value || "").trim().replace(/^@/, "").toLowerCase();
 	}
+	function isTweetDetailPage() {
+		return /^\/[^/]+\/status\/\d+/.test(location.pathname);
+	}
+	function getTweetStatusId() {
+		const match = location.pathname.match(/\/status\/(\d+)/);
+		return match ? match[1] : "";
+	}
+	function getArticleStatusId(article) {
+		if (!article) return "";
+		const link = article.querySelector("a[href*=\"/status/\"]");
+		if (!link) return "";
+		const match = (link.getAttribute("href") || "").match(/\/status\/(\d+)/);
+		return match ? match[1] : "";
+	}
+	function getMainTweetArticle() {
+		const primaryColumn = document.querySelector("[data-testid=\"primaryColumn\"]");
+		if (!primaryColumn) return null;
+		return primaryColumn.querySelector("article[data-testid=\"tweet\"]");
+	}
+	function getTweetAuthorFromArticle(article) {
+		const match = ((article?.querySelector("a[role=\"link\"][href^=\"/\"]"))?.getAttribute("href") || "").match(/^\/([^/]+)/);
+		return match ? match[1] : "";
+	}
+	function getMainTweetAuthor() {
+		return getTweetAuthorFromArticle(getMainTweetArticle());
+	}
+	function getTweetTextNode(article) {
+		return article?.querySelector("[data-testid=\"tweetText\"]");
+	}
 	function findMatchingTarget() {
 		const { targetXIds } = loadSettings();
 		const conversationId = normalizeId(getConversationId());
 		const conversationName = normalizeId(getConversationName());
+		const tweetAuthor = normalizeId(getMainTweetAuthor());
 		return targetXIds.map(normalizeId).filter(Boolean).find((target) => {
 			if (target === "*") return true;
-			return conversationId === target || conversationId.includes(target) || conversationName.includes(target);
+			if (conversationId) return conversationId === target || conversationId.includes(target) || conversationName.includes(target);
+			if (tweetAuthor) return tweetAuthor === target || tweetAuthor.includes(target);
+			return false;
 		});
 	}
 	function isTargetConversation() {
 		return Boolean(findMatchingTarget());
 	}
 	function getPartnerProfileId() {
-		return findMatchingTarget() || normalizeId(getConversationId());
+		return findMatchingTarget() || normalizeId(getConversationId()) || normalizeId(getMainTweetAuthor()) || "";
 	}
 	function getMessageId(textNode) {
 		return (textNode.getAttribute("data-testid") || "").replace(/^message-text-/, "");
@@ -1416,6 +1510,29 @@
 			latestMessage
 		};
 	}
+	function buildTweetPromptContext(author, tweetText) {
+		const settings = loadSettings();
+		const profileId = normalizeId(author) || getPartnerProfileId();
+		const summary = getPartnerSummary(profileId);
+		return {
+			conversation: `@${author}`,
+			model: MODEL,
+			participants: {
+				me: { profile: settings.myProfile },
+				them: {
+					profileId,
+					displayName: author,
+					xProfile: getPartnerProfileForId(profileId),
+					summary: summary?.summary || ""
+				}
+			},
+			messages: [],
+			latestMessage: {
+				speaker: "them",
+				text: tweetText
+			}
+		};
+	}
 	function hashText(text) {
 		let hash = 2166136261;
 		for (let index = 0; index < text.length; index += 1) {
@@ -1426,6 +1543,9 @@
 	}
 	function getTranslationCacheKey(messageId, text) {
 		return `translation:v2:${MODEL}:${getPartnerProfileId() || getConversationId()}:${messageId}:${hashText(text)}`;
+	}
+	function getTweetTranslationCacheKey(statusId, author, text) {
+		return `translation:v2:${MODEL}:tweet:${normalizeId(author) || "unknown"}:${statusId}:${hashText(text)}`;
 	}
 	function startTask(kind, label) {
 		state.totalTasks += 1;
@@ -1836,10 +1956,27 @@
 		});
 	}
 	function findComposerForm() {
-		return document.querySelector("[data-testid=\"dm-composer-form\"]");
+		return document.querySelector("[data-testid=\"dm-composer-form\"]") || findTweetComposerContainer();
 	}
 	function findComposerTextarea() {
-		return document.querySelector("[data-testid=\"dm-composer-textarea\"]");
+		return document.querySelector("[data-testid=\"dm-composer-textarea\"]") || document.querySelector("[data-testid=\"tweetTextarea_0\"]");
+	}
+	function findTweetComposerContainer() {
+		const textarea = document.querySelector("[data-testid=\"tweetTextarea_0\"]");
+		const button = document.querySelector("[data-testid=\"tweetButton\"], [data-testid=\"tweetButtonInline\"], [data-testid=\"tweetButtonDisabled\"]");
+		if (!textarea || !button) return null;
+		const textareaAncestors = new Set();
+		let element = textarea;
+		while (element) {
+			textareaAncestors.add(element);
+			element = element.parentElement;
+		}
+		element = button;
+		while (element) {
+			if (textareaAncestors.has(element)) return element;
+			element = element.parentElement;
+		}
+		return null;
 	}
 	function createProgressBar() {
 		const wrap = document.createElement("div");
@@ -1853,6 +1990,7 @@
 		let progress = document.getElementById(`xct-progress`);
 		if (!progress) progress = createProgressBar();
 		if (progress.parentElement !== form) form.prepend(progress);
+		if (form.dataset.testid === "tweetTextarea_0_label" || form.querySelector("[data-testid=\"tweetTextarea_0\"]")) form.classList.add(`xct-tweet-composer`);
 		return progress;
 	}
 	function updateProgressBar() {
@@ -1959,6 +2097,10 @@
 	function setComposerValue(value) {
 		const textarea = findComposerTextarea();
 		if (!textarea) throw new Error("找不到输入框");
+		if (textarea.getAttribute("contenteditable") === "true" || textarea.isContentEditable) {
+			setContentEditableValue(textarea, value);
+			return;
+		}
 		Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(textarea, value);
 		textarea.dispatchEvent(new InputEvent("input", {
 			bubbles: true,
@@ -1967,6 +2109,26 @@
 		}));
 		textarea.dispatchEvent(new Event("change", { bubbles: true }));
 		textarea.focus();
+	}
+	function setContentEditableValue(element, value) {
+		element.focus();
+		const selection = window.getSelection();
+		const range = document.createRange();
+		range.selectNodeContents(element);
+		range.deleteContents();
+		const textNode = document.createTextNode(value);
+		range.insertNode(textNode);
+		range.selectNodeContents(textNode);
+		range.collapse(false);
+		selection.removeAllRanges();
+		selection.addRange(range);
+		element.dispatchEvent(new InputEvent("input", {
+			bubbles: true,
+			inputType: "insertText",
+			data: value
+		}));
+		element.dispatchEvent(new Event("change", { bubbles: true }));
+		element.focus();
 	}
 	function ensureReplyButton() {
 		const form = findComposerForm();
@@ -2119,12 +2281,12 @@
         <h3>基础</h3>
         <label>OpenRouter Key<span class="xct-setting-state" data-setting-state="openRouterApiKey"></span><input name="openRouterApiKey" type="password" autocomplete="off"></label>
         <div class="xct-target-section">
-          <label>目标会话 / X ID<span class="xct-setting-state" data-setting-state="targetXIds"></span></label>
+          <label>目标会话 / 推文作者 X ID<span class="xct-setting-state" data-setting-state="targetXIds"></span></label>
           <div class="xct-target-chips" id="xct-target-chips"></div>
           <div class="xct-target-add">
             <input type="text" data-target-input placeholder="输入 X ID 或 *">
             <button type="button" data-action="add-target">添加</button>
-            <button type="button" data-action="use-current-target">当前会话</button>
+            <button type="button" data-action="use-current-target">当前目标</button>
           </div>
           <input type="hidden" name="targetXIds">
         </div>
@@ -2163,7 +2325,7 @@
       </section>
       <div class="xct-settings-actions">
         <button type="button" data-action="save" class="xct-primary">保存</button>
-        <button type="button" data-action="use-current">当前会话</button>
+        <button type="button" data-action="use-current">当前目标</button>
         <button type="button" data-action="cache">查看缓存</button>
         <button type="button" data-action="clear-cache">清空缓存</button>
       </div>
@@ -2397,23 +2559,23 @@
 		setPanelTargetIds(getPanelTargetIds().filter((id) => id !== targetId));
 	}
 	function useCurrentConversationAsTarget() {
-		const conversationId = getConversationId();
-		if (!conversationId) {
-			setSettingsStatus("当前不是私信会话", true);
+		const currentId = getConversationId() || getMainTweetAuthor();
+		if (!currentId) {
+			setSettingsStatus("当前不是私信会话或推文页面", true);
 			return;
 		}
 		const current = getPanelTargetIds();
-		if (current.includes(conversationId)) {
-			setSettingsStatus("当前会话已在目标中");
+		if (current.includes(currentId)) {
+			setSettingsStatus("当前目标已在列表中");
 			return;
 		}
-		setPanelTargetIds([...current, conversationId]);
-		setSettingsStatus("已添加当前会话");
+		setPanelTargetIds([...current, currentId]);
+		setSettingsStatus("已添加当前目标");
 	}
 	function clearCacheWithConfirm() {
 		if (!confirm("清空翻译缓存？")) return;
 		clearTranslationCache();
-		document.querySelectorAll(`.xct-translation, .xct-translation-row`).forEach((node) => node.remove());
+		document.querySelectorAll(`.xct-translation, .xct-translation-row, .xct-tweet-translation-row`).forEach((node) => node.remove());
 		setSettingsStatus("缓存已清空");
 		if (document.getElementById(`xct-cache-panel`)?.classList.contains("is-open")) renderCacheList();
 		scanMessages();
@@ -2463,11 +2625,201 @@
 			return item;
 		}));
 	}
+	function ensureTweetTranslationRow(article) {
+		let row = article.querySelector(`.xct-tweet-translation-row`);
+		if (row) return row.querySelector(`.xct-tweet-translation`);
+		row = document.createElement("div");
+		row.className = `xct-tweet-translation-row`;
+		const node = document.createElement("div");
+		node.className = `xct-tweet-translation`;
+		node.textContent = "…";
+		const button = document.createElement("button");
+		button.type = "button";
+		button.className = `xct-tweet-translate-btn`;
+		button.textContent = "译";
+		button.title = "翻译";
+		button.addEventListener("click", () => {
+			const text = cleanMessageText(getTweetTextNode(article)?.innerText || "");
+			if (!text) return;
+			enqueueTweetTranslation(article, text, true);
+		});
+		row.appendChild(node);
+		row.appendChild(button);
+		const textNode = getTweetTextNode(article);
+		if (textNode) textNode.insertAdjacentElement("afterend", row);
+		else article.appendChild(row);
+		return node;
+	}
+	function renderTweetTranslation(article, text) {
+		const slot = ensureTweetTranslationRow(article);
+		slot.textContent = text;
+		slot.classList.remove(`xct-error`);
+	}
+	function markTweetTranslationError(article, error) {
+		const slot = ensureTweetTranslationRow(article);
+		slot.textContent = error.message;
+		slot.classList.add(`xct-error`);
+	}
+	function enqueueTweetTranslation(article, text, force = false) {
+		const statusId = getArticleStatusId(article) || getTweetStatusId();
+		const author = getTweetAuthorFromArticle(article);
+		const cacheKey = getTweetTranslationCacheKey(statusId, author, text);
+		const cached = getCachedTranslation(cacheKey);
+		if (cached) {
+			renderTweetTranslation(article, cached.translation);
+			return;
+		}
+		if (state.translating.has(cacheKey)) return;
+		if (!loadSettings().autoTranslate && !force) return;
+		if (!hasJapaneseText(text)) {
+			if (force) markTweetTranslationError(article, new Error("未检测到日语内容，跳过翻译"));
+			return;
+		}
+		state.translating.add(cacheKey);
+		const slot = ensureTweetTranslationRow(article);
+		slot.textContent = "…";
+		slot.classList.remove(`xct-error`);
+		translateIncomingMessage(text, buildTweetPromptContext(author, text)).then((translated) => {
+			setCachedTranslation(cacheKey, {
+				conversationId: `tweet:${statusId}`,
+				conversationName: `@${author}`,
+				profileId: getPartnerProfileId(),
+				messageId: statusId,
+				source: text,
+				translation: translated,
+				createdAt: Date.now()
+			});
+			renderTweetTranslation(article, translated);
+		}).catch((error) => markTweetTranslationError(article, error)).finally(() => {
+			state.translating.delete(cacheKey);
+		});
+	}
+	function scanTweetArticles() {
+		const articles = [...document.querySelectorAll("article[data-testid=\"tweet\"]")];
+		for (const article of articles) {
+			if (article.querySelector(`.xct-tweet-translation-row`)) continue;
+			const text = cleanMessageText(getTweetTextNode(article)?.innerText || "");
+			if (!text) continue;
+			const cacheKey = getTweetTranslationCacheKey(getArticleStatusId(article) || getTweetStatusId(), getTweetAuthorFromArticle(article), text);
+			if (state.scannedTweetKeys.has(cacheKey)) continue;
+			state.scannedTweetKeys.add(cacheKey);
+			ensureTweetTranslationRow(article);
+			const cached = getCachedTranslation(cacheKey);
+			if (cached) renderTweetTranslation(article, cached.translation);
+		}
+	}
+	function getMainTweetText() {
+		const textNode = getTweetTextNode(getMainTweetArticle());
+		return textNode ? cleanMessageText(textNode.innerText) : "";
+	}
+	function generateTweetReplySuggestions(tweetText, author) {
+		return requestOpenRouter([{
+			role: "system",
+			content: getPrompt("tweetReplySuggestions")
+		}, {
+			role: "user",
+			content: JSON.stringify({
+				context: buildTweetPromptContext(author, tweetText),
+				tweetText
+			})
+		}], {
+			temperature: .55,
+			maxCompletionTokens: MAX_COMPLETION_TOKENS,
+			responseFormat: CONVERSATION_SUGGESTIONS_FORMAT,
+			taskType: "suggestion",
+			taskLabel: "生成回复建议"
+		}).then((data) => data.suggestions);
+	}
+	function getTweetSuggestionsStore() {
+		const store = GM_getValue(TWEET_SUGGESTIONS_KEY, {});
+		return store && typeof store === "object" && !Array.isArray(store) ? store : {};
+	}
+	function setTweetSuggestions(profileId, record) {
+		const store = getTweetSuggestionsStore();
+		store[profileId] = record;
+		GM_setValue(TWEET_SUGGESTIONS_KEY, store);
+	}
+	function clearTweetReplySuggestions(profileId) {
+		const store = getTweetSuggestionsStore();
+		if (store[profileId]) {
+			delete store[profileId];
+			GM_setValue(TWEET_SUGGESTIONS_KEY, store);
+		}
+		const panel = document.getElementById(`xct-suggestions`);
+		if (panel) panel.replaceChildren();
+	}
+	function generateAndRenderTweetReplySuggestions(profileId, tweetText) {
+		return generateTweetReplySuggestions(tweetText, getMainTweetAuthor()).then((items) => {
+			state.suggestionRetryAt.delete(profileId);
+			setTweetSuggestions(profileId, {
+				profileId,
+				lastTweetId: getTweetStatusId(),
+				suggestions: items,
+				updatedAt: Date.now()
+			});
+			renderSuggestionChoices(items);
+			return items;
+		}).catch((error) => {
+			state.suggestionRetryAt.set(profileId, Date.now() + 18e4);
+			console.warn("[X DM OpenRouter Translator] 推文回复建议生成失败", error);
+			throw error;
+		});
+	}
+	function maybeGenerateTweetReplySuggestions(profileId, tweetText) {
+		if (!profileId || !tweetText) return Promise.resolve();
+		if (state.suggestionUpdating.has(profileId) || (state.suggestionRetryAt.get(profileId) || 0) > Date.now()) return Promise.resolve();
+		state.suggestionUpdating.add(profileId);
+		return generateAndRenderTweetReplySuggestions(profileId, tweetText).finally(() => state.suggestionUpdating.delete(profileId));
+	}
+	function handleTweetSuggestButtonClick() {
+		const button = document.getElementById(`xct-suggest-button`);
+		const profileId = getPartnerProfileId();
+		const tweetText = getMainTweetText();
+		if (!profileId || !tweetText) return;
+		if (state.suggestionUpdating.has(profileId)) return;
+		state.suggestionRetryAt.delete(profileId);
+		clearTweetReplySuggestions(profileId);
+		if (button) button.textContent = "⏳";
+		maybeGenerateTweetReplySuggestions(profileId, tweetText).finally(() => {
+			if (button) button.textContent = "🤔";
+		});
+	}
+	function renderStoredTweetSuggestionChoices() {
+		const record = getTweetSuggestionsStore()[getPartnerProfileId()];
+		const panel = document.getElementById(`xct-suggestions`);
+		if (!panel) return;
+		if (record?.suggestions?.length && record?.lastTweetId === getTweetStatusId()) renderSuggestionChoices(record.suggestions);
+		else panel.replaceChildren();
+	}
+	function ensureTweetReplyButtons() {
+		const form = findComposerForm();
+		if (!form) return;
+		let button = document.getElementById(`xct-reply-button`);
+		if (!button) {
+			button = document.createElement("button");
+			button.id = `xct-reply-button`;
+			button.type = "button";
+			button.textContent = "译";
+			button.title = "翻译";
+			button.addEventListener("click", toggleReplyPanel);
+		}
+		if (button.parentElement !== form.parentElement) form.insertAdjacentElement("afterend", button);
+		let suggestButton = document.getElementById(`xct-suggest-button`);
+		if (!suggestButton) {
+			suggestButton = document.createElement("button");
+			suggestButton.id = `xct-suggest-button`;
+			suggestButton.type = "button";
+			suggestButton.textContent = "🤔";
+			suggestButton.title = "建议回复";
+			suggestButton.addEventListener("click", handleTweetSuggestButtonClick);
+		}
+		if (suggestButton.parentElement !== form.parentElement) button.insertAdjacentElement("afterend", suggestButton);
+	}
 	function registerMenuCommands() {
 		GM_registerMenuCommand("翻译设置", openSettingsPanel);
 		GM_registerMenuCommand("查看翻译缓存", openCachePanel);
 		GM_registerMenuCommand("清空翻译缓存", clearCacheWithConfirm);
-		GM_registerMenuCommand("使用当前会话为目标", useCurrentConversationAsTarget);
+		GM_registerMenuCommand("使用当前目标", useCurrentConversationAsTarget);
 		GM_registerMenuCommand("开关自动翻译", () => {
 			saveSettings({ autoTranslate: !loadSettings().autoTranslate });
 			scanMessages();
@@ -2485,26 +2837,38 @@
 		injectStyles();
 		removeLegacyTranslationNodes();
 		const conversationId = getConversationId();
-		if (conversationId !== state.seenConversationId) {
+		const isNewConversation = conversationId !== state.seenConversationId;
+		const isNewPath = location.pathname !== state.seenPathname;
+		if (isNewConversation || isNewPath) {
 			state.seenConversationId = conversationId;
+			state.seenPathname = location.pathname;
 			state.lastSeenLatestMessageKey = "";
+			state.scannedMessageKeys.clear();
+			state.scannedTweetKeys.clear();
 			document.getElementById(`xct-reply-panel`)?.classList.remove("is-open");
 			document.getElementById(`xct-settings-panel`)?.classList.remove("is-open");
 			document.getElementById(`xct-cache-panel`)?.classList.remove("is-open");
 			document.getElementById(`xct-prompt-editor`)?.classList.remove("is-open");
-			renderStoredSuggestionChoices();
+			if (isTweetDetailPage()) renderStoredTweetSuggestionChoices();
+			else renderStoredSuggestionChoices();
 			state.profilePending.clear();
 			state.profileUpdating.clear();
 			const currentProfileId = getPartnerProfileId();
 			for (const map of [state.profileRetryAt, state.suggestionRetryAt]) for (const key of map.keys()) if (key !== currentProfileId) map.delete(key);
 		}
-		if (isTargetConversation()) {
+		scanTweetArticles();
+		if (isTargetConversation()) if (isTweetDetailPage()) {
+			ensureTweetReplyButtons();
+			ensureProgressBar();
+			ensureSuggestionsPanel();
+			positionSuggestionsPanel();
+		} else {
 			ensureReplyButton();
 			ensureProgressBar();
 			ensureSuggestionsPanel();
 			positionSuggestionsPanel();
+			scanMessages();
 		}
-		scanMessages();
 	}
 	function start() {
 		registerMenuCommands();

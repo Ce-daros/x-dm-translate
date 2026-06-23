@@ -8,9 +8,9 @@ export default defineConfig({
       userscript: {
         name: 'X DM OpenRouter Translator',
         namespace: 'https://github.com/ame/x-chat-translate',
-        version: '0.2.4',
-        description: 'Translate selected X DMs to Chinese and draft Japanese replies.',
-        match: ['https://x.com/i/chat*', 'https://twitter.com/i/chat*'],
+        version: '0.3.0',
+        description: 'Translate selected X DMs and tweet comments to Chinese and draft Japanese replies.',
+        match: ['https://x.com/i/chat*', 'https://twitter.com/i/chat*', 'https://x.com/*/status/*', 'https://twitter.com/*/status/*'],
         'run-at': 'document-idle',
         grant: [
           'GM_xmlhttpRequest',

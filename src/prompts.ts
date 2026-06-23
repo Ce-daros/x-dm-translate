@@ -7,21 +7,8 @@ export const DEFAULT_PROMPTS = {
       '你是 X 私信对话建议助手。messages 中每条消息都标注了说话者：【我】代表当前用户，【对方】代表聊天对象。请严格基于双方资料、长期画像、主题状态、最近 10 条双方消息和最近一条消息，给出三个当前用户（我）可继续对话的中文草稿。注意区分消息来源，不要把我的话当成对方的话。三个建议应代表不同对话意图，不是固定语气模板。严格基于原对话，不制造不存在的事实、邀约、承诺或情绪。每条包含短标签、中文说明和中文草稿。只按 schema 返回 JSON。',
     partnerSummary:
       '你维护 X 私信对方的长期画像摘要。画像只在累计 10 条新的对方消息后更新。根据旧画像、这 10 条新的对方消息、最近 10 条双方上下文和最新消息更新画像；若没有旧画像，就从这些材料中新建画像。只记录对理解翻译、人称、称呼、关系、兴趣、偏好、语气有用的信息。不要编造；不确定就不要写。摘要用简体中文，短而密，保留稳定事实和高置信倾向。只按 schema 返回 JSON。',
-  };
-
-  const state = {
-    seenConversationId: '',
-    lastSeenLatestMessageKey: '',
-    translating: new Set(),
-    pending: new Map(),
-    activeTranslations: 0,
-    profileUpdating: new Set(),
-    profilePending: new Map(),
-    suggestionUpdating: new Set(),
-    profileRetryAt: new Map(),
-    suggestionRetryAt: new Map(),
-    activeTasks: 0,
-    totalTasks: 0,
-    finishedTasks: 0,
-    scannedMessageKeys: new Set(),
+    tweetTranslation:
+      '你负责翻译 X 帖子或评论。根据帖子作者资料（如有），把目标日语内容翻译成自然的简体中文。严格只翻译目标内容，不解释、不总结、不补充事实、不替说话者圆场，不把上下文里没有的意思写进译文。保留原文换行、表情、暧昧程度和语气。只按 schema 返回 JSON。',
+    tweetReplySuggestions:
+      '你是 X 帖子回复建议助手。请基于帖子原文、帖子作者资料（如有）和我的资料（如有），给出三个适合当前用户回复该帖子的中文草稿。三个建议应代表不同回复意图，不是固定语气模板。严格基于原帖，不制造不存在的事实、邀约、承诺或情绪。每条包含短标签、中文说明和中文草稿。只按 schema 返回 JSON。',
   };

@@ -993,12 +993,67 @@ export function injectStyles() {
       .${SCRIPT_ID}-modal button,
       .${SCRIPT_ID}-primary,
       .${SCRIPT_ID}-cache-search,
-      .${SCRIPT_ID}-cache-item {
+      .${SCRIPT_ID}-cache-item,
+      .${SCRIPT_ID}-tweet-translation-row,
+      .${SCRIPT_ID}-tweet-translate-btn {
         transition: none !important;
         animation: none !important;
       }
     }
 
+
+
+    .${SCRIPT_ID}-tweet-translation-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-top: 4px;
+      padding: 4px 0 8px;
+      animation: ${SCRIPT_ID}-fade-in-up 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .${SCRIPT_ID}-tweet-translation {
+      flex: 1 1 auto;
+      color: var(--xct-text-secondary);
+      font-size: 14px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .${SCRIPT_ID}-tweet-translate-btn {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      border: 1px solid var(--xct-border);
+      border-radius: 9999px;
+      background: var(--xct-surface);
+      color: var(--xct-text-secondary);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+
+    .${SCRIPT_ID}-tweet-translate-btn:hover {
+      background: var(--xct-surface-hover);
+      border-color: var(--xct-accent);
+      color: var(--xct-accent);
+    }
+
+    #${SCRIPT_ID}-progress {
+      position: absolute;
+    }
+
+    [data-testid="dm-composer-form"],
+    .${SCRIPT_ID}-tweet-composer {
+      position: relative;
+    }
   `;
   document.head.appendChild(style);
 }

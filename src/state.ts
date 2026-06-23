@@ -1,5 +1,6 @@
 export const state = {
   seenConversationId: '',
+  seenPathname: '',
   lastSeenLatestMessageKey: '',
   translating: new Set(),
   pending: new Map(),
@@ -13,4 +14,5 @@ export const state = {
   totalTasks: 0,
   finishedTasks: 0,
   scannedMessageKeys: new Set(),
+  scannedTweetKeys: new Set(),
 };
